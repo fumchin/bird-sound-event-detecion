@@ -1,0 +1,10 @@
+# dataset/*
+*.wav
+*.mp3
+*.txt
+*.npy
+*.csv
+*.pyc
+*.jams
+.vscode/
+src/stored_data/

@@ -1,0 +1,29 @@
+{
+    "RCKI": {
+      "proba": 0.5,
+      "co-occurences": {
+        "max_events": 5,
+        "mean_events": 3,
+        "classes": [
+            "AMGO"
+        ],
+        "probas": [
+            1
+        ]
+        } 
+    },
+      "AMGO": {
+          "proba": 0.5,
+          "co-occurences": {
+            "max_events": 5,
+            "mean_events": 3,
+            "classes": [
+                "RCKI"
+            ],
+            "probas": [
+                1
+            ]
+            } 
+        }
+}
+  

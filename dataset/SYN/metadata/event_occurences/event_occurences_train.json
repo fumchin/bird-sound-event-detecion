@@ -1,0 +1,67 @@
+{
+    "AMCR": {
+        "proba": 0.5,
+        "co-occurences": {
+          "max_events": 10,
+          "mean_events": 5,
+          "classes": [
+              "RCKI",
+              "AMGO"
+          ],
+          "probas": [
+              0.5,
+              0.5
+          ]
+          } 
+      },
+    "RCKI": {
+      "proba": 0.2,
+      "co-occurences": {
+        "max_events": 10,
+        "mean_events": 5,
+        "classes": [
+            "WBNU",
+            "AMGO",
+            "AMCR"
+        ],
+        "probas": [
+            0.3,
+            0.2,
+            0.5
+        ]
+        } 
+    },
+    "AMGO": {
+        "proba": 0.2,
+        "co-occurences": {
+          "max_events": 10,
+          "mean_events": 5,
+          "classes": [
+              "RCKI",
+              "AMCR"
+          ],
+          "probas": [
+            0.5,
+            0.5
+          ]
+          } 
+      },
+    "WBNU": {
+        "proba": 0.1,
+        "co-occurences": {
+          "max_events": 10,
+          "mean_events": 5,
+          "classes": [
+              "RCKI",
+              "AMGO",
+              "AMCR"
+          ],
+          "probas": [
+              0.3,
+              0.2,
+              0.5
+          ]
+          } 
+      }
+}
+  
