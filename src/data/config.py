@@ -46,13 +46,13 @@ median_window = [max(int(item * out_nb_frames_1s), 1) for item in median_window_
 in_memory = True
 in_memory_unlab = False
 num_workers = 12
-batch_size = 36
+batch_size = 24
 
-model_name = "CRNN_0309_20birds_mixed"
+model_name = "CRNN_0314_fpn_mt"
 test_model_name = "CRNN_0309_20birds_scaler"
 syn_or_not = True
 n_epoch = 300 #, variance after 100 may be too large
-n_epoch_rampup = 70
+n_epoch_rampup = 50
 n_epoch_rampdown = 80
 dataset_random_seed = 1215
 
@@ -60,10 +60,10 @@ checkpoint_epochs = 1
 save_best = True
 early_stopping = None # 20
 es_init_wait = 50  # es for early stopping
-adjust_lr = True
-max_learning_rate = 0.001#0.001  # Used if adjust_lr is True
+adjust_lr = False
+max_learning_rate = 0.001 #0.001  # Used if adjust_lr is True
 default_learning_rate = 0.001#0.001  # Used if adjust_lr is False
-
+max_consistency_cost = 2.5
 
 # bird list
 bird_list = \

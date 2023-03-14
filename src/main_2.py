@@ -6,7 +6,6 @@ import os
 import time
 import pdb
 from pprint import pprint
-from itertools import cycle
 
 import pandas as pd
 import numpy as np
@@ -64,8 +63,8 @@ def adjust_learning_rate(optimizer, rampup_value, rampdown_value=1, optimizer_d=
     # beta2 = (1. - rampup_value) * cfg.beta2_during_rampdup + rampup_value * cfg.beta2_after_rampup
     # weight_decay = (1 - rampup_value) * cfg.weight_decay_during_rampup + cfg.weight_decay_after_rampup * rampup_value
 
-    # if c_epoch % 25 == 0:
-    # lr = 0.001 * pow(0.1, c_epoch//20)
+    # if c_epoch % 40 == 0:
+    # lr = 0.01 * pow(0.5, c_epoch//40)
     # lr_adv = lr_adv * 0.1
     
     for param_group in optimizer.param_groups:
@@ -220,7 +219,7 @@ def train(train_loader, model, optimizer, c_epoch, ema_model=None, ema_predictor
         
         # Outputs
         if ema_model != None:
-            encoded_x_ema, _ = ema_model(batch_input)
+            encoded_x_ema, _ = ema_model(ema_batch_input)
             strong_pred_ema, weak_pred_ema = ema_predictor(encoded_x_ema)
             strong_pred_ema = strong_pred_ema.detach()
             weak_pred_ema = weak_pred_ema.detach()
@@ -464,346 +463,6 @@ def train(train_loader, model, optimizer, c_epoch, ema_model=None, ema_predictor
     return loss
 
 
-def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None, ema_predictor=None, mask_weak=None, mask_strong=None, adjust_lr=False, discriminator=None, optimizer_d=None, predictor=None, optimizer_crnn=None, ISP=False):
-    """ One epoch of a Mean Teacher model
-    Args:
-        train_loader: torch.utils.data.DataLoader, iterator of training batches for an epoch.
-            Should return a tuple: ((teacher input, student input), labels)
-        model: torch.Module, model to be trained, should return a weak and strong prediction
-        optimizer: torch.Module, optimizer used to train the model
-        c_epoch: int, the current epoch of training
-        ema_model: torch.Module, student model, should return a weak and strong prediction
-        mask_weak: slice or list, mask the batch to get only the weak labeled data (used to calculate the loss)
-        mask_strong: slice or list, mask the batch to get only the strong labeled data (used to calcultate the loss)
-        adjust_lr: bool, Whether or not to adjust the learning rate during training (params in config)
-    """
-    log = create_logger(__name__ + "/" + inspect.currentframe().f_code.co_name, terminal_level=cfg.terminal_level)
-    class_criterion = nn.BCELoss()
-    consistency_criterion = nn.MSELoss()
-    class_criterion, consistency_criterion = to_cuda_if_available(class_criterion, consistency_criterion)
-
-    domain_acc = []
-    # ema_model = None
-    meters = AverageMeterSet()
-    log.debug("Nb batches: {}".format(len(train_loader)))
-    start = time.time()
-    # for i, (xb1, xb2) in enumerate(zip(train_loader, cycle(syn_loader))):
-    # for epoch in range(num_epochs):
-    dataloader_iterator = iter(syn_loader)
-    
-    for i, data1 in enumerate(train_loader):
-
-        try:
-            data2 = next(dataloader_iterator)
-        except StopIteration:
-            dataloader_iterator = iter(syn_loader)
-            data2 = next(dataloader_iterator)
-
-        ((batch_input, ema_batch_input), target), filename = data1
-        ((syn_batch_input, syn_ema_batch_input), syn_target), syn_filename = data2  
-        if ISP:
-            # Generate input random shift feature 
-            pooling_time_ratio = 4
-            shift_list = [random.randint(-32,32)*pooling_time_ratio for iter in range(cfg.batch_size)]
-            freq_shift_list = [random.randint(-4,4) for iter in range(cfg.batch_size)]
-            for k in range(cfg.batch_size):
-                input_shift = torch.roll(batch_input[k], shift_list[k], dims=1)
-                input_shift = torch.unsqueeze(input_shift, 0)
-                input_freq_shift = torch.roll(batch_input[k], freq_shift_list[k], dims=2)
-                input_freq_shift = torch.unsqueeze(input_freq_shift, 0)
-                if k==0:
-                    batch_input_shift = input_shift
-                    batch_input_freq_shift = input_freq_shift
-                else:
-                    batch_input_shift = torch.cat((batch_input_shift,input_shift), 0)
-                    batch_input_freq_shift = torch.cat((batch_input_freq_shift,input_freq_shift), 0)
-                
-            batch_input_shift = to_cuda_if_available(batch_input_shift)
-            batch_input_freq_shift = to_cuda_if_available(batch_input_freq_shift)
- 
-        global_step = c_epoch * len(syn_loader) + i
-        niter = c_epoch * len(syn_loader) + i
-        rampup_value = ramps.exp_rampup(global_step, cfg.n_epoch_rampup*len(syn_loader))
-
-        adv_step = (c_epoch-start_epoch) * len(syn_loader) + i
-        rampup_value_adv = ramps.exp_rampup(adv_step, cfg.n_epoch_rampup*len(syn_loader))
-
-        if adjust_lr:
-            adjust_learning_rate(optimizer, rampup_value, optimizer_d=optimizer_d, optimizer_crnn=optimizer_crnn, c_epoch=c_epoch, rampup_value_adv=rampup_value_adv)
-        meters.update('lr', optimizer.param_groups[0]['lr'])
-
-        # Generate DA labels for training discriminator
-        if discriminator is not None:
-            if f_args.level == 'frame':
-                domain_label = torch.zeros((24, 157, 2))
-                domain_label[:18, :, 1] = 1 # target: 1 for axis 1
-                domain_label[18:, :, 0] = 1 # source: 1 for axis 0
-            elif f_args.level == 'clip':
-                domain_label = torch.zeros((24, 2))
-                domain_label[:18, 1] = 1 # target: 1 for axis 1
-                domain_label[18:, 0] = 1 # source: 1 for axis 0
-            batch_input, ema_batch_input, target, domain_label = to_cuda_if_available(batch_input, ema_batch_input, target, domain_label)
-        else:
-            batch_input, ema_batch_input, target = to_cuda_if_available(batch_input, ema_batch_input, target)
-            syn_batch_input, syn_ema_batch_input, syn_target = to_cuda_if_available(syn_batch_input, syn_ema_batch_input, syn_target)
-
-        
-        # Outputs
-        if ema_model != None:
-            encoded_x_ema, _ = ema_model(ema_batch_input)
-            strong_pred_ema, weak_pred_ema = ema_predictor(encoded_x_ema)
-            strong_pred_ema = strong_pred_ema.detach()
-            weak_pred_ema = weak_pred_ema.detach()
-
-            syn_encoded_x_ema, _ = ema_model(syn_ema_batch_input)
-            syn_strong_pred_ema, syn_weak_pred_ema = ema_predictor(syn_encoded_x_ema)
-            syn_strong_pred_ema = syn_strong_pred_ema.detach()
-            syn_weak_pred_ema = syn_weak_pred_ema.detach()
-        
-        
-        adv_w = 1 # weight of adversarial loss
-        update_step = 1
-        # Update discriminator
-        # if discriminator is not None:
-        #     if global_step % update_step == 0:
-        #         optimizer_d.zero_grad()
-        #         encoded_x, d_input = model(batch_input)
-        #         domain_pred = discriminator(d_input.detach())
-
-        #         # To balance source and target amount
-        #         random_choice = np.random.choice(18,6,replace=False)
-        #         choice = np.append(random_choice,[18,19,20,21,22,23])
-        #         domain_pred = domain_pred[choice]
-        #         domain_label_original = domain_label[choice]
-
-        #         domain_loss_d = adv_w * class_criterion(domain_pred, domain_label_original)
-        #         domain_loss_d.backward()
-        #         optimizer_d.step()
-                
-
-        # # Update feature extractor
-        # if discriminator is not None:
-        #     if global_step % update_step == 0:
-        #         optimizer_d.zero_grad()     
-        #         optimizer_crnn.zero_grad()
-        #         encoded_x, d_input = model(batch_input)
-        #         domain_pred = discriminator(d_input)
-
-        #         # Generate domain labels for training feature extractor
-        #         if f_args.level == 'frame':
-        #             domain_label = torch.zeros((18, 157, 2))
-        #             domain_label[:18, :, 0] = 1 # target: 1 for axis 0
-        #         elif f_args.level == 'clip':
-        #             domain_label = torch.zeros((18, 2))
-        #             domain_label[:18, 0] = 1
-                
-        #         domain_label = to_cuda_if_available(domain_label)
-                
-        #         # To balance source and target amount
-        #         choice = np.random.choice(18,12,replace=False)
-        #         domain_pred = domain_pred[choice]
-        #         domain_label_original = domain_label[choice]    
-
-
-        #         domain_loss = adv_w * class_criterion(domain_pred, domain_label_original)
-        #         domain_loss.backward()
-        #         optimizer_crnn.step()
-        
-
-        # Update feature extractor and predictor
-        optimizer.zero_grad()
-        if discriminator is not None:
-            optimizer_d.zero_grad() 
-        optimizer_crnn.zero_grad()
-        syn_encoded_x, syn_d_input = model(syn_batch_input)
-        syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
-
-        encoded_x, d_input = model(batch_input)
-        strong_pred, weak_pred = predictor(encoded_x)
-
-        if ISP:
-            # Prediction and target(strong) shift
-            for k in range(cfg.batch_size):
-                pool_shift = int(shift_list[k]/pooling_time_ratio)
-                pred_shift = torch.roll(strong_pred[k], pool_shift, dims=0)
-                pred_shift = torch.unsqueeze(pred_shift, 0)
-                target_shift = torch.roll(target[k], pool_shift, dims=0)
-                target_shift = torch.unsqueeze(target_shift, 0)
-                if k==0:
-                    strong_pred_shift = pred_shift
-                    strong_target_shift = target_shift
-                else:
-                    strong_pred_shift = torch.cat((strong_pred_shift,pred_shift), 0)
-                    strong_target_shift = torch.cat((strong_target_shift,target_shift), 0)
-            strong_pred_shift = strong_pred_shift.detach() 
-            # Shifted prediction
-            encoded_x_shift, _ = model(batch_input_shift)
-            strong_shift_pred, weak_shift_pred = predictor(encoded_x_shift)
-            encoded_x_freq_shift, _ = model(batch_input_freq_shift)
-            strong_freq_shift_pred, weak_freq_shift_pred = predictor(encoded_x_freq_shift)
-
-            # Setting for ICT
-            mask_unlabel = slice(6,18)
-            mixup_sup_alpha = 1.0
-            mixup_usup_alpha = 2.0
-            mixup_consistency = 1.0
-            consistency_rampup_starts = 0.0
-            consistency_rampup_ends = 100.0 
-        mask_unlabel = slice(6,18)
-        loss = None
-        # Weak BCE Loss
-        syn_target_weak = syn_target.max(-2)[0]  # Take the max in the time axis
-        if mask_weak is not None:
-            if ISP:
-                # Contain weak pseudo-label
-                weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_unlabel]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_unlabel]), 0))
-                
-                # SCT
-                weak_freq_shift_class_loss = class_criterion(weak_freq_shift_pred[mask_weak], target_weak[mask_weak])
-                
-                # ICT
-                if mixup_sup_alpha:
-                    mixed_input_weak, target_a_weak, target_b_weak, lam_weak = mixup_data_sup(batch_input[mask_weak], target_weak[mask_weak], mixup_sup_alpha)
-                    encoded_x_weak, _ = model(mixed_input_weak)
-                    _, output_mixed_weak = predictor(encoded_x_weak)
-                    loss_func_weak = mixup_criterion(target_a_weak, target_b_weak, lam_weak)
-                    mixup_weak_class_loss = loss_func_weak(class_criterion, output_mixed_weak)
-                    meters.update('maxup_weak_class_loss', mixup_weak_class_loss.item())
-            else:
-                # weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_strong]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_strong]), 0))
-                weak_class_loss = class_criterion(weak_pred[mask_weak], target_weak[mask_weak])
-
-            if i == 0:
-                log.debug(f"target: {target.mean(-2)} \n Target_weak: {target_weak} \n "
-                          f"Target weak mask: {target_weak[mask_weak]} \n "
-                          f"Target strong mask: {target[mask_strong].sum(-2)}\n"
-                          f"weak loss: {weak_class_loss} \t rampup_value: {rampup_value}"
-                          f"tensor mean: {batch_input.mean()}")
-            meters.update('weak_class_loss', weak_class_loss.item())
-        else:
-            weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
-            if i == 0:
-                log.debug(f"target: {target.mean(-2)} \n Target_weak: {syn_target_weak} \n "
-                          f"Target weak mask: {syn_target_weak} \n "
-                          f"Target strong mask: {target.sum(-2)}\n"
-                          f"weak loss: {weak_class_loss} \t rampup_value: {rampup_value}"
-                          f"tensor mean: {batch_input.mean()}")
-            meters.update('weak_class_loss', weak_class_loss.item())
-
-
-        # Strong BCE loss
-        if mask_strong is not None:
-            strong_class_loss = class_criterion(strong_pred[mask_strong], target[mask_strong])
-            meters.update('Strong loss', strong_class_loss.item())
-
-            if ISP:
-                # SCT
-                strong_shift_class_loss = class_criterion(strong_shift_pred[mask_strong], strong_target_shift[mask_strong])
-                strong_freq_shift_class_loss = class_criterion(strong_freq_shift_pred[mask_strong], target[mask_strong])
-
-                # ICT
-                if mixup_sup_alpha:
-                    mixed_input_strong, target_a_strong, target_b_strong, lam_strong = mixup_data_sup(batch_input[mask_strong], target[mask_strong], mixup_sup_alpha)
-                    encoded_x_strong, _ = model(mixed_input_strong)
-                    output_mixed_strong, _ = predictor(encoded_x_strong)
-                    loss_func_strong = mixup_criterion(target_a_strong, target_b_strong, lam_strong)
-                    mixup_strong_class_loss = loss_func_strong(class_criterion, output_mixed_strong)
-                    meters.update('mixup_strong_class_loss', mixup_strong_class_loss.item())    
-        else:
-            strong_class_loss = class_criterion(syn_strong_pred, syn_target)
-            meters.update('Strong loss', strong_class_loss.item())
-
-        # Teacher-student consistency cost
-        if ema_model is not None:
-            consistency_cost = cfg.max_consistency_cost * rampup_value
-            meters.update('Consistency weight', consistency_cost)
-            # Take consistency about strong predictions (all data)
-            consistency_loss_strong = consistency_cost * consistency_criterion(strong_pred, strong_pred_ema)
-            consistency_loss_strong += consistency_cost * consistency_criterion(syn_strong_pred, syn_strong_pred_ema)
-            meters.update('Consistency strong', consistency_loss_strong.item())
-            meters.update('Consistency weight', consistency_cost)
-            # Take consistency about weak predictions (all data)
-            consistency_loss_weak = consistency_cost * consistency_criterion(weak_pred, weak_pred_ema)
-            consistency_loss_weak += consistency_cost * consistency_criterion(syn_weak_pred, syn_weak_pred_ema)
-            meters.update('Consistency weak', consistency_loss_weak.item())
-
-            if ISP:
-                # ICT
-                batch_input_u = batch_input[mask_unlabel]
-                encoded_x_u, _ = ema_model(batch_input_u)
-                ema_logit_unlabeled, ema_logit_unlabeled_weak = ema_predictor(encoded_x_u)
-                ema_logit_unlabeled = ema_logit_unlabeled.detach()
-                ema_logit_unlabeled_weak = ema_logit_unlabeled_weak.detach()
-                
-                if mixup_consistency:
-                    mixedup_x, mixedup_target, mixedup_target_weak, lam = mixup_data(batch_input_u, ema_logit_unlabeled, ema_logit_unlabeled_weak, mixup_usup_alpha)
-                    encoded_x_mixedup, _ = model(mixedup_x)
-                    output_mixed_u, output_mixed_u_weak = predictor(encoded_x_mixedup)
-
-                    mixup_consistency_weak_loss = consistency_criterion(output_mixed_u_weak, mixedup_target_weak)# / 12
-                    mixup_consistency_strong_loss = consistency_criterion(output_mixed_u, mixedup_target)# / 12
-                    meters.update('mixup_cons_weak_loss', mixup_consistency_weak_loss.item())
-                    meters.update('mixup_cons_strong_loss', mixup_consistency_strong_loss.item())
-                    
-                    mixup_consistency_weak_loss = consistency_cost*mixup_consistency_weak_loss     
-                    mixup_consistency_strong_loss = consistency_cost*mixup_consistency_strong_loss        
- 
- 
-        # Calculate loss for labeled data
-        loss = strong_class_loss + weak_class_loss
-        
-        if ema_model is not None:
-            loss = loss + (consistency_loss_weak + consistency_loss_strong)
-            # loss = loss + (consistency_loss_weak)
-        
-        if ISP:
-            # Add shift consistency loss
-            consistency_loss_shift = consistency_cost/2 * consistency_criterion(strong_shift_pred, strong_pred_shift)            
-            loss = loss + (weak_freq_shift_class_loss + mixup_weak_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + mixup_strong_class_loss + mixup_consistency_weak_loss + mixup_consistency_strong_loss + consistency_loss_shift)
-        
-        
-        writer.add_scalar('Loss', loss.item(), niter)
-        if discriminator is not None:
-            writer.add_scalar('Weak class loss', weak_class_loss.item(), niter)
-            
-            if global_step % update_step == 0:
-                writer.add_scalar('Decoder domain loss', domain_loss_d.item(), niter)   
-                writer.add_scalar('Feature extractor domain loss', domain_loss.item(), niter)
-            
-        writer.add_scalar('Strong class loss', strong_class_loss.item(), niter)
-
-        if ema_model is not None:
-            writer.add_scalar('Consistency strong', consistency_loss_strong.item(), niter)
-            writer.add_scalar('Consistency weak', consistency_loss_weak.item(), niter)
-
-        if ISP:
-            writer.add_scalar('Mixup weak class loss', mixup_weak_class_loss.item(), niter)
-            writer.add_scalar('Mixup strong class loss', mixup_strong_class_loss.item(), niter)
-            writer.add_scalar('Mixup consistency weak loss', mixup_consistency_weak_loss.item(), niter)
-            writer.add_scalar('Mixup consistency strong loss', mixup_consistency_strong_loss.item(), niter)    
-            writer.add_scalar('Consistency shift', consistency_loss_shift.item(), niter)
-            writer.add_scalar('Strong shift class loss', strong_shift_class_loss.item(), niter)
-            writer.add_scalar('Weak freq shift class loss', weak_freq_shift_class_loss.item(), niter)
-            writer.add_scalar('Strong freq shift class loss', strong_freq_shift_class_loss.item(), niter)
-
-        assert not (np.isnan(loss.item()) or loss.item() > 1e5), 'Loss explosion: {}'.format(loss.item())
-        assert not loss.item() < 0, 'Loss problem, cannot be negative'
-        meters.update('Loss', loss.item())
-
-        
-        # Compute gradient and do optimizer step
-        loss.backward()
-        optimizer.step()
-
-        global_step += 1
-        if ema_model is not None:
-            update_ema_variables(model, ema_model, 0.999, global_step)
-            update_ema_variables(predictor, ema_predictor, 0.999, global_step)
-
-    epoch_time = time.time() - start
-    log.info(f"Epoch: {c_epoch}\t Time {epoch_time:.2f}\t {meters}")
-    return loss
-
 # def get_dfs(desed_dataset, nb_files=None, separated_sources=False):
 #     log = create_logger(__name__ + "/" + inspect.currentframe().f_code.co_name, terminal_level=cfg.terminal_level)
 #     audio_weak_ss = None
@@ -980,16 +639,14 @@ if __name__ == '__main__':
     
     
 
-    if meanteacher == False:
+    if cfg.syn_or_not == True:
         train_dataset = torch.utils.data.ConcatDataset([train_dataset, syn_dataset])
-        # train_dataset = torch.utils.data.TensorDataset(train_dataset, syn_dataset)
     else:
         train_dataset = train_dataset
     
     
     
     train_dataloader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
-    syn_dataloader = DataLoader(syn_dataset, batch_size=cfg.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
     # weak_data = DataLoadDf(dfs["weak"], encod_func, transforms, in_memory=cfg.in_memory)
     # unlabel_data = DataLoadDf(dfs["unlabel"], encod_func, transforms, in_memory=cfg.in_memory_unlab)
@@ -1228,13 +885,11 @@ if __name__ == '__main__':
 
             # loss_value = train(training_loader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
             #                 mask_weak=weak_mask, mask_strong=strong_mask, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)            
-            loss_value = train_mt(train_dataloader, syn_dataloader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
+            loss_value = train(train_dataloader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
                             mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)
         else:
-            #     loss_value = train(train_dataloader, crnn, optim, epoch,
-            #                     mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)
-            loss_value = train_mt(train_dataloader, syn_dataloader, crnn, optim, epoch, ema_model=None, ema_predictor=None,
-                                mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)
+            loss_value = train(train_dataloader, crnn, optim, epoch,
+                            mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)
 
         # Validation
         crnn.eval()
