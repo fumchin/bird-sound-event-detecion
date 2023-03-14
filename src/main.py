@@ -85,9 +85,19 @@ def adjust_learning_rate(optimizer, rampup_value, rampdown_value=1, optimizer_d=
 
 def update_ema_variables(model, ema_model, alpha, global_step):
     # Use the true average until the exponential average is more correct
+    # alpha = min(1 - 1 / (global_step + 1), alpha)
+    # for ema_params, params in zip(ema_model.parameters(), model.parameters()):
+    #     ema_params.data.mul_(alpha).add_(1 - alpha, params.data)
     alpha = min(1 - 1 / (global_step + 1), alpha)
-    for ema_params, params in zip(ema_model.parameters(), model.parameters()):
-        ema_params.data.mul_(alpha).add_(1 - alpha, params.data)
+    with torch.no_grad():
+        model_state_dict = model.state_dict()
+        ema_model_state_dict = ema_model.state_dict()
+        for entry in ema_model_state_dict.keys():
+            ema_param = ema_model_state_dict[entry].clone().detach()
+            param = model_state_dict[entry].clone().detach()
+            new_param = (ema_param * alpha) + (param * (1. - alpha))
+            ema_model_state_dict[entry] = new_param
+        ema_model.load_state_dict(ema_model_state_dict)
 
 
 def plot_grad_flow(named_parameters):
@@ -964,7 +974,7 @@ if __name__ == '__main__':
         scaler.calculate_scaler(train_scaler_dataset) 
     # train_data, val_data = train_test_split(dataset, random_state=cfg.dataset_random_seed, train_size=0.5)
 
-    transforms = get_transforms(cfg.max_frames, None, add_axis_conv,
+    transforms = get_transforms(cfg.max_frames, scaler, add_axis_conv,
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     
 
@@ -973,7 +983,7 @@ if __name__ == '__main__':
 
     scaler_val = Scaler()
     scaler_val.calculate_scaler(val_scaler_dataset) 
-    transforms_valid = get_transforms(cfg.max_frames, None, add_axis_conv,
+    transforms_valid = get_transforms(cfg.max_frames, scaler_val, add_axis_conv,
                                       noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_valid, compute_log=True)
     

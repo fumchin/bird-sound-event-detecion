@@ -48,7 +48,7 @@ in_memory_unlab = False
 num_workers = 12
 batch_size = 24
 
-model_name = "CRNN_0314_fpn_mt"
+model_name = "CRNN_0314_fpn_mt_scaler_zhihu"
 test_model_name = "CRNN_0309_20birds_scaler"
 syn_or_not = True
 n_epoch = 300 #, variance after 100 may be too large
