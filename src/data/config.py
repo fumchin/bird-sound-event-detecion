@@ -46,9 +46,9 @@ median_window = [max(int(item * out_nb_frames_1s), 1) for item in median_window_
 in_memory = True
 in_memory_unlab = False
 num_workers = 12
-batch_size = 24
+batch_size = 12
 
-model_name = "CRNN_0314_fpn_mt_scaler_zhihu"
+model_name = "CRNN_0315_fpn_da_test"
 test_model_name = "CRNN_0309_20birds_scaler"
 syn_or_not = True
 n_epoch = 300 #, variance after 100 may be too large
@@ -60,10 +60,10 @@ checkpoint_epochs = 1
 save_best = True
 early_stopping = None # 20
 es_init_wait = 50  # es for early stopping
-adjust_lr = False
+adjust_lr = True
 max_learning_rate = 0.001 #0.001  # Used if adjust_lr is True
 default_learning_rate = 0.001#0.001  # Used if adjust_lr is False
-max_consistency_cost = 2.5
+max_consistency_cost = 0.05
 
 # bird list
 bird_list = \

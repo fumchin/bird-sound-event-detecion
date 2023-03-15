@@ -543,16 +543,18 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
         meters.update('lr', optimizer.param_groups[0]['lr'])
 
         # Generate DA labels for training discriminator
+        batch_size = cfg.batch_size
         if discriminator is not None:
             if f_args.level == 'frame':
-                domain_label = torch.zeros((24, 157, 2))
-                domain_label[:18, :, 1] = 1 # target: 1 for axis 1
-                domain_label[18:, :, 0] = 1 # source: 1 for axis 0
+                domain_label = torch.zeros((batch_size, 313, 2))
+                domain_label[:(batch_size//2), :, 1] = 1 # target: 1 for axis 1
+                domain_label[(batch_size//2):, :, 0] = 1 # source: 1 for axis 0
             elif f_args.level == 'clip':
-                domain_label = torch.zeros((24, 2))
+                domain_label = torch.zeros((12, 2))
                 domain_label[:18, 1] = 1 # target: 1 for axis 1
                 domain_label[18:, 0] = 1 # source: 1 for axis 0
             batch_input, ema_batch_input, target, domain_label = to_cuda_if_available(batch_input, ema_batch_input, target, domain_label)
+            syn_batch_input, syn_ema_batch_input, syn_target = to_cuda_if_available(syn_batch_input, syn_ema_batch_input, syn_target)
         else:
             batch_input, ema_batch_input, target = to_cuda_if_available(batch_input, ema_batch_input, target)
             syn_batch_input, syn_ema_batch_input, syn_target = to_cuda_if_available(syn_batch_input, syn_ema_batch_input, syn_target)
@@ -565,59 +567,72 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             strong_pred_ema = strong_pred_ema.detach()
             weak_pred_ema = weak_pred_ema.detach()
 
-            syn_encoded_x_ema, _ = ema_model(syn_ema_batch_input)
-            syn_strong_pred_ema, syn_weak_pred_ema = ema_predictor(syn_encoded_x_ema)
-            syn_strong_pred_ema = syn_strong_pred_ema.detach()
-            syn_weak_pred_ema = syn_weak_pred_ema.detach()
+            # syn_encoded_x_ema, _ = ema_model(syn_ema_batch_input)
+            # syn_strong_pred_ema, syn_weak_pred_ema = ema_predictor(syn_encoded_x_ema)
+            # syn_strong_pred_ema = syn_strong_pred_ema.detach()
+            # syn_weak_pred_ema = syn_weak_pred_ema.detach()
         
         
         adv_w = 1 # weight of adversarial loss
-        update_step = 1
+        update_step = 2
         # Update discriminator
-        # if discriminator is not None:
-        #     if global_step % update_step == 0:
-        #         optimizer_d.zero_grad()
-        #         encoded_x, d_input = model(batch_input)
-        #         domain_pred = discriminator(d_input.detach())
+        if discriminator is not None:
+            if global_step % update_step == 0:
+                optimizer_d.zero_grad()
+                encoded_x, d_input = model(batch_input)
+                real_domain_pred = discriminator(d_input.detach())
 
-        #         # To balance source and target amount
-        #         random_choice = np.random.choice(18,6,replace=False)
-        #         choice = np.append(random_choice,[18,19,20,21,22,23])
-        #         domain_pred = domain_pred[choice]
-        #         domain_label_original = domain_label[choice]
+                syn_encoded_x, syn_d_input = model(syn_batch_input)
+                syn_domain_pred = discriminator(syn_d_input.detach())
 
-        #         domain_loss_d = adv_w * class_criterion(domain_pred, domain_label_original)
-        #         domain_loss_d.backward()
-        #         optimizer_d.step()
+                 
+                # To balance source and target amount
+                random_choice = np.random.choice(12,6,replace=False)
+                syn_random_choice = [x+12 for x in random_choice]
+                choice = np.append(random_choice,syn_random_choice)
+                
+                domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
+
+                # domain_pred = domain_pred[choice]
+                # domain_label_original = domain_label[choice]
+                domain_label_original = domain_label
+
+                domain_loss_d = adv_w * class_criterion(domain_pred, domain_label_original)
+                domain_loss_d.backward()
+                optimizer_d.step()
                 
 
-        # # Update feature extractor
-        # if discriminator is not None:
-        #     if global_step % update_step == 0:
-        #         optimizer_d.zero_grad()     
-        #         optimizer_crnn.zero_grad()
-        #         encoded_x, d_input = model(batch_input)
-        #         domain_pred = discriminator(d_input)
+        # Update feature extractor
+        if discriminator is not None:
+            if global_step % update_step == 0:
+                optimizer_d.zero_grad()     
+                optimizer_crnn.zero_grad()
 
-        #         # Generate domain labels for training feature extractor
-        #         if f_args.level == 'frame':
-        #             domain_label = torch.zeros((18, 157, 2))
-        #             domain_label[:18, :, 0] = 1 # target: 1 for axis 0
-        #         elif f_args.level == 'clip':
-        #             domain_label = torch.zeros((18, 2))
-        #             domain_label[:18, 0] = 1
+                encoded_x, d_input = model(batch_input)
+                real_domain_pred = discriminator(d_input)
+
+                # syn_encoded_x, syn_d_input = model(syn_batch_input)
+                # syn_domain_pred = discriminator(syn_d_input)
+
+                # Generate domain labels for training feature extractor
+                if f_args.level == 'frame':
+                    domain_label = torch.zeros((batch_size, 313, 2))
+                    domain_label[:batch_size, :, 0] = 1 # target: 1 for axis 0
+                elif f_args.level == 'clip':
+                    domain_label = torch.zeros((batch_size, 2))
+                    domain_label[:batch_size, 0] = 1
                 
-        #         domain_label = to_cuda_if_available(domain_label)
+                domain_label = to_cuda_if_available(domain_label)
                 
-        #         # To balance source and target amount
-        #         choice = np.random.choice(18,12,replace=False)
-        #         domain_pred = domain_pred[choice]
-        #         domain_label_original = domain_label[choice]    
+                # To balance source and target amount
+                choice = np.random.choice(batch_size,batch_size//2,replace=False)
+                domain_pred = real_domain_pred[choice]
+                domain_label_original = domain_label[choice]    
 
 
-        #         domain_loss = adv_w * class_criterion(domain_pred, domain_label_original)
-        #         domain_loss.backward()
-        #         optimizer_crnn.step()
+                domain_loss = adv_w * class_criterion(domain_pred, domain_label_original)
+                domain_loss.backward()
+                optimizer_crnn.step()
         
 
         # Update feature extractor and predictor
@@ -729,12 +744,12 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             meters.update('Consistency weight', consistency_cost)
             # Take consistency about strong predictions (all data)
             consistency_loss_strong = consistency_cost * consistency_criterion(strong_pred, strong_pred_ema)
-            consistency_loss_strong += consistency_cost * consistency_criterion(syn_strong_pred, syn_strong_pred_ema)
+            # consistency_loss_strong += consistency_cost * consistency_criterion(syn_strong_pred, syn_strong_pred_ema)
             meters.update('Consistency strong', consistency_loss_strong.item())
             meters.update('Consistency weight', consistency_cost)
             # Take consistency about weak predictions (all data)
             consistency_loss_weak = consistency_cost * consistency_criterion(weak_pred, weak_pred_ema)
-            consistency_loss_weak += consistency_cost * consistency_criterion(syn_weak_pred, syn_weak_pred_ema)
+            # consistency_loss_weak += consistency_cost * consistency_criterion(syn_weak_pred, syn_weak_pred_ema)
             meters.update('Consistency weak', consistency_loss_weak.item())
 
             if ISP:
