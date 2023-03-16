@@ -20,7 +20,7 @@ from sklearn.model_selection import train_test_split
 from utilities.ManyHotEncoder import ManyHotEncoder
 from data.Transforms import get_transforms
 from utilities.Logger import create_logger
-# from utilities.Scaler import Scaler, ScalerPerAudio
+from utilities.Scaler import Scaler, ScalerPerAudio
 from models.CRNN import CRNN, Predictor, CRNN_fpn
 import data.config as cfg
 import pdb
@@ -216,9 +216,19 @@ if __name__ == '__main__':
     # dataset = DESED(base_feature_dir=osp.join(cfg.workspace, "dataset", "features"), compute_log=False)
     # scaler = _load_scaler(state)
     # transforms = get_transforms(cfg.max_frames, None, add_axis_conv, noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    transforms = get_transforms(cfg.max_frames, None, add_axis_conv,
-                                noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
+    
+    scaler_val = Scaler()
+    transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
+    val_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    scaler_val.calculate_scaler(val_scaler_dataset) 
+    transforms_valid = get_transforms(cfg.max_frames, scaler_val, add_axis_conv,
+                                      noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
+    val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_valid, compute_log=True)
+    
+    
+    # transforms = get_transforms(cfg.max_frames, None, add_axis_conv,
+    #                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
+    # val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
     # train_data, val_data = train_test_split(dataset, random_state=cfg.dataset_random_seed, train_size=0.5)
     
     val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)

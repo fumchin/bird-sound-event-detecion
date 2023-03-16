@@ -236,7 +236,7 @@ def train(train_loader, model, optimizer, c_epoch, ema_model=None, ema_predictor
             weak_pred_ema = weak_pred_ema.detach()
         
         
-        adv_w = 1 # weight of adversarial loss
+        adv_w = 0.1 # weight of adversarial loss
         update_step = 1
         # Update discriminator
         if discriminator is not None:
@@ -573,7 +573,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             # syn_weak_pred_ema = syn_weak_pred_ema.detach()
         
         
-        adv_w = 1 # weight of adversarial loss
+        adv_w = 0.1 # weight of adversarial loss
         update_step = 2
         # Update discriminator
         if discriminator is not None:

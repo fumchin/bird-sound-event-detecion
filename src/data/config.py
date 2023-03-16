@@ -48,8 +48,8 @@ in_memory_unlab = False
 num_workers = 12
 batch_size = 12
 
-model_name = "CRNN_0315_fpn_da_test"
-test_model_name = "CRNN_0309_20birds_scaler"
+model_name = "CRNN_fpn_only_syn"
+test_model_name = "CRNN_0314_fpn_mt_adjust_lr"
 syn_or_not = True
 n_epoch = 300 #, variance after 100 may be too large
 n_epoch_rampup = 50
