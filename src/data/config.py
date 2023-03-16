@@ -48,7 +48,8 @@ in_memory_unlab = False
 num_workers = 12
 batch_size = 12
 
-model_name = "CRNN_fpn_only_syn"
+# model_name = "CRNN_0315_fpn_da_advw_001"
+model_name = "CRNN_fpn_scmt_test"
 test_model_name = "CRNN_0314_fpn_mt_adjust_lr"
 syn_or_not = True
 n_epoch = 300 #, variance after 100 may be too large
@@ -63,7 +64,7 @@ es_init_wait = 50  # es for early stopping
 adjust_lr = True
 max_learning_rate = 0.001 #0.001  # Used if adjust_lr is True
 default_learning_rate = 0.001#0.001  # Used if adjust_lr is False
-max_consistency_cost = 0.05
+max_consistency_cost = 0.1
 
 # bird list
 bird_list = \

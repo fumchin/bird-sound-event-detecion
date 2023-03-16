@@ -197,25 +197,64 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
         ((batch_input, ema_batch_input), target), filename = data1
         ((syn_batch_input, syn_ema_batch_input), syn_target), syn_filename = data2  
+        if (batch_input.shape[0] != syn_batch_input.shape[0]):
+            continue
         if ISP:
             # Generate input random shift feature 
             pooling_time_ratio = 4
             shift_list = [random.randint(-32,32)*pooling_time_ratio for iter in range(cfg.batch_size)]
             freq_shift_list = [random.randint(-4,4) for iter in range(cfg.batch_size)]
-            for k in range(cfg.batch_size):
+            for k in range(batch_input.shape[0]):
                 input_shift = torch.roll(batch_input[k], shift_list[k], dims=1)
                 input_shift = torch.unsqueeze(input_shift, 0)
                 input_freq_shift = torch.roll(batch_input[k], freq_shift_list[k], dims=2)
                 input_freq_shift = torch.unsqueeze(input_freq_shift, 0)
+
+                ema_input_shift = torch.roll(ema_batch_input[k], shift_list[k], dims=1)
+                ema_input_shift = torch.unsqueeze(ema_input_shift, 0)
+                ema_input_freq_shift = torch.roll(ema_batch_input[k], freq_shift_list[k], dims=2)
+                ema_input_freq_shift = torch.unsqueeze(ema_input_freq_shift, 0)
+
                 if k==0:
                     batch_input_shift = input_shift
                     batch_input_freq_shift = input_freq_shift
+
+                    ema_batch_input_shift = ema_input_shift
+                    ema_batch_input_freq_shift = ema_input_freq_shift
                 else:
                     batch_input_shift = torch.cat((batch_input_shift,input_shift), 0)
                     batch_input_freq_shift = torch.cat((batch_input_freq_shift,input_freq_shift), 0)
+
+                    ema_batch_input_shift = torch.cat((ema_batch_input_shift,ema_input_shift), 0)
+                    ema_batch_input_freq_shift = torch.cat((ema_batch_input_freq_shift,ema_input_freq_shift), 0)
+
+
+            for k in range(syn_batch_input.shape[0]):
+
+                syn_input_shift = torch.roll(syn_batch_input[k], shift_list[k], dims=1)
+                syn_input_shift = torch.unsqueeze(syn_input_shift, 0)
+                syn_input_freq_shift = torch.roll(syn_batch_input[k], freq_shift_list[k], dims=2)
+                syn_input_freq_shift = torch.unsqueeze(syn_input_freq_shift, 0)
+
+                if k==0:
+
+                    syn_batch_input_shift = syn_input_shift
+                    syn_batch_input_freq_shift = syn_input_freq_shift
+                else:
+                    syn_batch_input_shift = torch.cat((syn_batch_input_shift,syn_input_shift), 0)
+                    syn_batch_input_freq_shift = torch.cat((syn_batch_input_freq_shift,syn_input_freq_shift), 0)
                 
             batch_input_shift = to_cuda_if_available(batch_input_shift)
             batch_input_freq_shift = to_cuda_if_available(batch_input_freq_shift)
+
+            ema_batch_input_shift = to_cuda_if_available(ema_batch_input_shift)
+            ema_batch_input_freq_shift = to_cuda_if_available(ema_batch_input_freq_shift)
+
+            syn_batch_input_shift = to_cuda_if_available(syn_batch_input_shift)
+            syn_batch_input_freq_shift = to_cuda_if_available(syn_batch_input_freq_shift)
+        
+        
+        
  
         global_step = c_epoch * len(syn_loader) + i
         niter = c_epoch * len(syn_loader) + i
@@ -253,13 +292,24 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             strong_pred_ema = strong_pred_ema.detach()
             weak_pred_ema = weak_pred_ema.detach()
 
+            if ISP:
+                encoded_x_shift_ema, _ = ema_model(ema_batch_input_shift)
+                strong_pred_shift_ema, weak_pred_shift_ema = ema_predictor(encoded_x_shift_ema)
+                strong_pred_shift_ema = strong_pred_shift_ema.detach()
+                weak_pred_shift_ema = weak_pred_shift_ema.detach()
+
+                encoded_x_freq_shift_ema, _ = ema_model(ema_batch_input_freq_shift)
+                strong_pred_freq_shift_ema, weak_pred_freq_shift_ema = ema_predictor(encoded_x_freq_shift_ema)
+                strong_pred_freq_shift_ema = strong_pred_freq_shift_ema.detach()
+                weak_pred_freq_shift_ema = weak_pred_freq_shift_ema.detach()
+
             # syn_encoded_x_ema, _ = ema_model(syn_ema_batch_input)
             # syn_strong_pred_ema, syn_weak_pred_ema = ema_predictor(syn_encoded_x_ema)
             # syn_strong_pred_ema = syn_strong_pred_ema.detach()
             # syn_weak_pred_ema = syn_weak_pred_ema.detach()
         
         
-        adv_w = 0.01 # weight of adversarial loss
+        adv_w = 2.5 # weight of adversarial loss
         update_step = 2
         # Update discriminator
         if discriminator is not None:
@@ -273,9 +323,9 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
                  
                 # To balance source and target amount
-                random_choice = np.random.choice(batch_size,batch_size//2,replace=False)
-                # syn_random_choice = [x+12 for x in random_choice]
-                # choice = np.append(random_choice,syn_random_choice)
+                random_choice = np.random.choice(12,6,replace=False)
+                syn_random_choice = [x+12 for x in random_choice]
+                choice = np.append(random_choice,syn_random_choice)
                 
                 domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
 
@@ -326,6 +376,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
         if discriminator is not None:
             optimizer_d.zero_grad() 
         optimizer_crnn.zero_grad()
+
         syn_encoded_x, syn_d_input = model(syn_batch_input)
         syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
 
@@ -334,95 +385,130 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
         if ISP:
             # Prediction and target(strong) shift
-            for k in range(cfg.batch_size):
+            for k in range(strong_pred.shape[0]):
                 pool_shift = int(shift_list[k]/pooling_time_ratio)
+
+
                 pred_shift = torch.roll(strong_pred[k], pool_shift, dims=0)
                 pred_shift = torch.unsqueeze(pred_shift, 0)
-                target_shift = torch.roll(target[k], pool_shift, dims=0)
-                target_shift = torch.unsqueeze(target_shift, 0)
+                # target_shift = torch.roll(target[k], pool_shift, dims=0)
+                # target_shift = torch.unsqueeze(target_shift, 0)
+
                 if k==0:
+
                     strong_pred_shift = pred_shift
-                    strong_target_shift = target_shift
+                    # strong_target_shift = target_shift
                 else:
+
                     strong_pred_shift = torch.cat((strong_pred_shift,pred_shift), 0)
-                    strong_target_shift = torch.cat((strong_target_shift,target_shift), 0)
+                    # strong_target_shift = torch.cat((strong_target_shift,target_shift), 0)
+            for k in range(syn_strong_pred.shape[0]):
+                pool_shift = int(shift_list[k]/pooling_time_ratio)
+
+                syn_pred_shift = torch.roll(syn_strong_pred[k], pool_shift, dims=0)
+                syn_pred_shift = torch.unsqueeze(syn_pred_shift, 0)
+                syn_target_shift = torch.roll(syn_target[k], pool_shift, dims=0)
+                syn_target_shift = torch.unsqueeze(syn_target_shift, 0)
+
+
+                if k==0:
+                    syn_strong_pred_shift = syn_pred_shift
+                    syn_strong_target_shift = syn_target_shift
+
+                else:
+                    syn_strong_pred_shift = torch.cat((syn_strong_pred_shift,syn_pred_shift), 0)
+                    syn_strong_target_shift = torch.cat((syn_strong_target_shift,syn_target_shift), 0)
+
             strong_pred_shift = strong_pred_shift.detach() 
+            syn_strong_pred_shift = syn_strong_pred_shift.detach() 
             # Shifted prediction
-            encoded_x_shift, _ = model(batch_input_shift)
-            strong_shift_pred, weak_shift_pred = predictor(encoded_x_shift)
-            encoded_x_freq_shift, _ = model(batch_input_freq_shift)
-            strong_freq_shift_pred, weak_freq_shift_pred = predictor(encoded_x_freq_shift)
+            syn_encoded_x_shift, _ = model(syn_batch_input_shift)
+            syn_strong_shift_pred, syn_weak_shift_pred = predictor(syn_encoded_x_shift)
+
+            syn_encoded_x_freq_shift, _ = model(syn_batch_input_freq_shift)
+            syn_strong_freq_shift_pred, syn_weak_freq_shift_pred = predictor(syn_encoded_x_freq_shift)
+
+            # encoded_x_input_shift_ema, _ = model(ema_batch_input_shift)
+            # strong_shift_pred_ema, weak_shift_pred_ema = predictor(encoded_x_input_shift_ema)
+
+            # encoded_x_input_freq_shift_ema, _ = model(ema_batch_input_freq_shift)
+            # strong_freq_shift_pred_ema, weak_freq_shift_pred_ema = predictor(encoded_x_input_freq_shift_ema)
+
+            # encoded_x_shift, _ = model(batch_input_shift)
+            # strong_shift_pred, weak_shift_pred = predictor(encoded_x_shift)
+            # encoded_x_freq_shift, _ = model(batch_input_freq_shift)
+            # strong_freq_shift_pred, weak_freq_shift_pred = predictor(encoded_x_freq_shift)
 
             # Setting for ICT
-            mask_unlabel = slice(6,18)
-            mixup_sup_alpha = 1.0
-            mixup_usup_alpha = 2.0
-            mixup_consistency = 1.0
-            consistency_rampup_starts = 0.0
-            consistency_rampup_ends = 100.0 
-        mask_unlabel = slice(6,18)
+            # mask_unlabel = slice(6,18)
+            # mixup_sup_alpha = 1.0
+            # mixup_usup_alpha = 2.0
+            # mixup_consistency = 1.0
+            # consistency_rampup_starts = 0.0
+            # consistency_rampup_ends = 100.0 
+        # mask_unlabel = slice(6,18)
         loss = None
         # Weak BCE Loss
         syn_target_weak = syn_target.max(-2)[0]  # Take the max in the time axis
-        if mask_weak is not None:
-            if ISP:
-                # Contain weak pseudo-label
-                weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_unlabel]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_unlabel]), 0))
-                
-                # SCT
-                weak_freq_shift_class_loss = class_criterion(weak_freq_shift_pred[mask_weak], target_weak[mask_weak])
-                
-                # ICT
-                if mixup_sup_alpha:
-                    mixed_input_weak, target_a_weak, target_b_weak, lam_weak = mixup_data_sup(batch_input[mask_weak], target_weak[mask_weak], mixup_sup_alpha)
-                    encoded_x_weak, _ = model(mixed_input_weak)
-                    _, output_mixed_weak = predictor(encoded_x_weak)
-                    loss_func_weak = mixup_criterion(target_a_weak, target_b_weak, lam_weak)
-                    mixup_weak_class_loss = loss_func_weak(class_criterion, output_mixed_weak)
-                    meters.update('maxup_weak_class_loss', mixup_weak_class_loss.item())
-            else:
-                # weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_strong]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_strong]), 0))
-                weak_class_loss = class_criterion(weak_pred[mask_weak], target_weak[mask_weak])
-
-            if i == 0:
-                log.debug(f"target: {target.mean(-2)} \n Target_weak: {target_weak} \n "
-                          f"Target weak mask: {target_weak[mask_weak]} \n "
-                          f"Target strong mask: {target[mask_strong].sum(-2)}\n"
-                          f"weak loss: {weak_class_loss} \t rampup_value: {rampup_value}"
-                          f"tensor mean: {batch_input.mean()}")
-            meters.update('weak_class_loss', weak_class_loss.item())
-        else:
+        # if mask_weak is not None:
+        # ======================================================================================================
+        # FOR WEAK LABEL
+        # ======================================================================================================
+        if ISP:
+            # Contain weak pseudo-label
+            # weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_unlabel]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_unlabel]), 0))
             weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
-            if i == 0:
-                log.debug(f"target: {target.mean(-2)} \n Target_weak: {syn_target_weak} \n "
-                          f"Target weak mask: {syn_target_weak} \n "
-                          f"Target strong mask: {target.sum(-2)}\n"
-                          f"weak loss: {weak_class_loss} \t rampup_value: {rampup_value}"
-                          f"tensor mean: {batch_input.mean()}")
-            meters.update('weak_class_loss', weak_class_loss.item())
+            # SCT
+            weak_freq_shift_class_loss = class_criterion(syn_weak_freq_shift_pred, syn_target_weak)
+            
+            # ICT
+            # if mixup_sup_alpha:
+            #     mixed_input_weak, target_a_weak, target_b_weak, lam_weak = mixup_data_sup(batch_input[mask_weak], target_weak[mask_weak], mixup_sup_alpha)
+            #     encoded_x_weak, _ = model(mixed_input_weak)
+            #     _, output_mixed_weak = predictor(encoded_x_weak)
+            #     loss_func_weak = mixup_criterion(target_a_weak, target_b_weak, lam_weak)
+            #     mixup_weak_class_loss = loss_func_weak(class_criterion, output_mixed_weak)
+            #     meters.update('maxup_weak_class_loss', mixup_weak_class_loss.item())
+        else:
+            # weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_strong]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_strong]), 0))
+            weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
+
+        if i == 0:
+            log.debug(f"target: {target.mean(-2)} \n Target_weak: {syn_target_weak} \n "
+                        f"Target weak mask: {syn_target_weak} \n "
+                        f"Target strong mask: {target.sum(-2)}\n"
+                        f"weak loss: {weak_class_loss} \t rampup_value: {rampup_value}"
+                        f"tensor mean: {batch_input.mean()}")
+        meters.update('weak_class_loss', weak_class_loss.item())
+        # else:
+        #     weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
+        #     if i == 0:
+        #         log.debug(f"target: {target.mean(-2)} \n Target_weak: {syn_target_weak} \n "
+        #                   f"Target weak mask: {syn_target_weak} \n "
+        #                   f"Target strong mask: {target.sum(-2)}\n"
+        #                   f"weak loss: {weak_class_loss} \t rampup_value: {rampup_value}"
+        #                   f"tensor mean: {batch_input.mean()}")
+        #     meters.update('weak_class_loss', weak_class_loss.item())
 
 
         # Strong BCE loss
-        if mask_strong is not None:
-            strong_class_loss = class_criterion(strong_pred[mask_strong], target[mask_strong])
-            meters.update('Strong loss', strong_class_loss.item())
+        # strong_class_loss = class_criterion(strong_pred[mask_strong], target[mask_strong])
+        strong_class_loss = class_criterion(syn_strong_pred, syn_target)
+        meters.update('Strong loss', strong_class_loss.item())
 
-            if ISP:
-                # SCT
-                strong_shift_class_loss = class_criterion(strong_shift_pred[mask_strong], strong_target_shift[mask_strong])
-                strong_freq_shift_class_loss = class_criterion(strong_freq_shift_pred[mask_strong], target[mask_strong])
+        if ISP:
+            # SCT
+            strong_shift_class_loss = class_criterion(syn_strong_shift_pred, syn_strong_target_shift)
+            strong_freq_shift_class_loss = class_criterion(syn_strong_freq_shift_pred, syn_target)
 
-                # ICT
-                if mixup_sup_alpha:
-                    mixed_input_strong, target_a_strong, target_b_strong, lam_strong = mixup_data_sup(batch_input[mask_strong], target[mask_strong], mixup_sup_alpha)
-                    encoded_x_strong, _ = model(mixed_input_strong)
-                    output_mixed_strong, _ = predictor(encoded_x_strong)
-                    loss_func_strong = mixup_criterion(target_a_strong, target_b_strong, lam_strong)
-                    mixup_strong_class_loss = loss_func_strong(class_criterion, output_mixed_strong)
-                    meters.update('mixup_strong_class_loss', mixup_strong_class_loss.item())    
-        else:
-            strong_class_loss = class_criterion(syn_strong_pred, syn_target)
-            meters.update('Strong loss', strong_class_loss.item())
+            # ICT
+            # if mixup_sup_alpha:
+            #     mixed_input_strong, target_a_strong, target_b_strong, lam_strong = mixup_data_sup(batch_input[mask_strong], target[mask_strong], mixup_sup_alpha)
+            #     encoded_x_strong, _ = model(mixed_input_strong)
+            #     output_mixed_strong, _ = predictor(encoded_x_strong)
+            #     loss_func_strong = mixup_criterion(target_a_strong, target_b_strong, lam_strong)
+            #     mixup_strong_class_loss = loss_func_strong(class_criterion, output_mixed_strong)
+            #     meters.update('mixup_strong_class_loss', mixup_strong_class_loss.item())    
 
         # Teacher-student consistency cost
         if ema_model is not None:
@@ -439,25 +525,42 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             meters.update('Consistency weak', consistency_loss_weak.item())
 
             if ISP:
-                # ICT
-                batch_input_u = batch_input[mask_unlabel]
-                encoded_x_u, _ = ema_model(batch_input_u)
-                ema_logit_unlabeled, ema_logit_unlabeled_weak = ema_predictor(encoded_x_u)
-                ema_logit_unlabeled = ema_logit_unlabeled.detach()
-                ema_logit_unlabeled_weak = ema_logit_unlabeled_weak.detach()
-                
-                if mixup_consistency:
-                    mixedup_x, mixedup_target, mixedup_target_weak, lam = mixup_data(batch_input_u, ema_logit_unlabeled, ema_logit_unlabeled_weak, mixup_usup_alpha)
-                    encoded_x_mixedup, _ = model(mixedup_x)
-                    output_mixed_u, output_mixed_u_weak = predictor(encoded_x_mixedup)
+                # Take consistency about shift strong predictions (all data)
+                consistency_loss_strong_shift = consistency_cost * consistency_criterion(syn_strong_shift_pred, strong_pred_shift_ema)
+                meters.update('Consistency strong shift', consistency_loss_strong_shift.item())
 
-                    mixup_consistency_weak_loss = consistency_criterion(output_mixed_u_weak, mixedup_target_weak)# / 12
-                    mixup_consistency_strong_loss = consistency_criterion(output_mixed_u, mixedup_target)# / 12
-                    meters.update('mixup_cons_weak_loss', mixup_consistency_weak_loss.item())
-                    meters.update('mixup_cons_strong_loss', mixup_consistency_strong_loss.item())
+                # Take consistency about shift weak predictions (all data)
+                consistency_loss_weak_shift = consistency_cost * consistency_criterion(syn_weak_shift_pred, weak_pred_shift_ema)
+                meters.update('Consistency weak shift', consistency_loss_weak_shift.item())
+
+                # Take consistency about shift strong predictions (all data)
+                consistency_loss_strong_freq_shift = consistency_cost * consistency_criterion(syn_strong_freq_shift_pred, strong_pred_freq_shift_ema)
                     
-                    mixup_consistency_weak_loss = consistency_cost*mixup_consistency_weak_loss     
-                    mixup_consistency_strong_loss = consistency_cost*mixup_consistency_strong_loss        
+                meters.update('Consistency strong freq shift', consistency_loss_strong_freq_shift.item())
+
+                # Take consistency about shift weak predictions (all data)
+                consistency_loss_weak_freq_shift = consistency_cost * consistency_criterion(syn_weak_freq_shift_pred, weak_pred_freq_shift_ema)
+                meters.update('Consistency weak freq shift', consistency_loss_weak_freq_shift.item())
+            # if ISP:
+            #     # ICT
+            #     batch_input_u = batch_input[mask_unlabel]
+            #     encoded_x_u, _ = ema_model(batch_input_u)
+            #     ema_logit_unlabeled, ema_logit_unlabeled_weak = ema_predictor(encoded_x_u)
+            #     ema_logit_unlabeled = ema_logit_unlabeled.detach()
+            #     ema_logit_unlabeled_weak = ema_logit_unlabeled_weak.detach()
+                
+            #     if mixup_consistency:
+            #         mixedup_x, mixedup_target, mixedup_target_weak, lam = mixup_data(batch_input_u, ema_logit_unlabeled, ema_logit_unlabeled_weak, mixup_usup_alpha)
+            #         encoded_x_mixedup, _ = model(mixedup_x)
+            #         output_mixed_u, output_mixed_u_weak = predictor(encoded_x_mixedup)
+
+            #         mixup_consistency_weak_loss = consistency_criterion(output_mixed_u_weak, mixedup_target_weak)# / 12
+            #         mixup_consistency_strong_loss = consistency_criterion(output_mixed_u, mixedup_target)# / 12
+            #         meters.update('mixup_cons_weak_loss', mixup_consistency_weak_loss.item())
+            #         meters.update('mixup_cons_strong_loss', mixup_consistency_strong_loss.item())
+                    
+            #         mixup_consistency_weak_loss = consistency_cost*mixup_consistency_weak_loss     
+            #         mixup_consistency_strong_loss = consistency_cost*mixup_consistency_strong_loss        
  
  
         # Calculate loss for labeled data
@@ -465,12 +568,15 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
         
         if ema_model is not None:
             loss = loss + (consistency_loss_weak + consistency_loss_strong)
+            consistency_loss_shift = consistency_cost/2 * consistency_criterion(syn_strong_shift_pred, strong_pred_shift)    
+            loss = loss + (weak_freq_shift_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
             # loss = loss + (consistency_loss_weak)
         
         if ISP:
             # Add shift consistency loss
-            consistency_loss_shift = consistency_cost/2 * consistency_criterion(strong_shift_pred, strong_pred_shift)            
-            loss = loss + (weak_freq_shift_class_loss + mixup_weak_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + mixup_strong_class_loss + mixup_consistency_weak_loss + mixup_consistency_strong_loss + consistency_loss_shift)
+            consistency_loss_shift = consistency_cost/2 * consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift)            
+            # loss = loss + (weak_freq_shift_class_loss + mixup_weak_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + mixup_strong_class_loss + mixup_consistency_weak_loss + mixup_consistency_strong_loss + consistency_loss_shift)
+            loss = loss + (consistency_loss_strong_shift + consistency_loss_weak_shift) + (consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
         
         
         writer.add_scalar('Loss', loss.item(), niter)
@@ -479,7 +585,6 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             
             if global_step % update_step == 0:
                 writer.add_scalar('Decoder domain loss', domain_loss_d.item(), niter)   
-            # elif global_step % update_step != 0:
                 writer.add_scalar('Feature extractor domain loss', domain_loss.item(), niter)
             
         writer.add_scalar('Strong class loss', strong_class_loss.item(), niter)
@@ -489,14 +594,19 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             writer.add_scalar('Consistency weak', consistency_loss_weak.item(), niter)
 
         if ISP:
-            writer.add_scalar('Mixup weak class loss', mixup_weak_class_loss.item(), niter)
-            writer.add_scalar('Mixup strong class loss', mixup_strong_class_loss.item(), niter)
-            writer.add_scalar('Mixup consistency weak loss', mixup_consistency_weak_loss.item(), niter)
-            writer.add_scalar('Mixup consistency strong loss', mixup_consistency_strong_loss.item(), niter)    
+            # writer.add_scalar('Mixup weak class loss', mixup_weak_class_loss.item(), niter)
+            # writer.add_scalar('Mixup strong class loss', mixup_strong_class_loss.item(), niter)
+            # writer.add_scalar('Mixup consistency weak loss', mixup_consistency_weak_loss.item(), niter)
+            # writer.add_scalar('Mixup consistency strong loss', mixup_consistency_strong_loss.item(), niter)    
             writer.add_scalar('Consistency shift', consistency_loss_shift.item(), niter)
             writer.add_scalar('Strong shift class loss', strong_shift_class_loss.item(), niter)
             writer.add_scalar('Weak freq shift class loss', weak_freq_shift_class_loss.item(), niter)
             writer.add_scalar('Strong freq shift class loss', strong_freq_shift_class_loss.item(), niter)
+
+            writer.add_scalar('Consistency strong shift', consistency_loss_strong_shift.item(), niter)
+            writer.add_scalar('Consistency weak shift', consistency_loss_weak_shift.item(), niter)
+            writer.add_scalar('Consistency strong freq shift', consistency_loss_strong_freq_shift.item(), niter)
+            writer.add_scalar('Consistency weak freq shift', consistency_loss_weak_freq_shift.item(), niter)
 
         assert not (np.isnan(loss.item()) or loss.item() > 1e5), 'Loss explosion: {}'.format(loss.item())
         assert not loss.item() < 0, 'Loss problem, cannot be negative'
