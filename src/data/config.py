@@ -48,8 +48,9 @@ in_memory_unlab = False
 num_workers = 12
 batch_size = 12
 
-# model_name = "CRNN_0315_fpn_da_advw_001"
-model_name = "CRNN_fpn_scmt_test"
+model_name = "CRNN_0319_fpn_grl_smooth"
+# model_name = "CRNN_fpn_scmt_grl"
+# model_name = "CRNN_fpn_scmt_test"
 test_model_name = "CRNN_0314_fpn_mt_adjust_lr"
 syn_or_not = True
 n_epoch = 300 #, variance after 100 may be too large
