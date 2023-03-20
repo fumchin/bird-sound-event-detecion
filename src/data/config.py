@@ -48,7 +48,7 @@ in_memory_unlab = False
 num_workers = 12
 batch_size = 12
 
-model_name = "CRNN_0319_fpn_grl_smooth"
+model_name = "CRNN_0319_fpn_cdan_advw1"
 # model_name = "CRNN_fpn_scmt_grl"
 # model_name = "CRNN_fpn_scmt_test"
 test_model_name = "CRNN_0314_fpn_mt_adjust_lr"
