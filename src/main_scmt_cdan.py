@@ -75,7 +75,8 @@ def adjust_learning_rate(optimizer, rampup_value, rampdown_value=1, optimizer_d=
 
     if optimizer_d != None:
         for param_group in optimizer_d.param_groups:
-            param_group['lr'] = lr * 0.1
+            # param_group['lr'] = lr * 0.1
+            param_group['lr'] = lr
 
     if optimizer_crnn != None:
         for param_group in optimizer_crnn.param_groups:
@@ -288,12 +289,20 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             # domain_label[(batch_size//2):, 0] = 0.8 # source: 1 for axis 0
             # domain_label[:(batch_size//2), 0] = 0.2 # target: 1 for axis 1
             if f_args.level == 'frame':
-                domain_label = torch.zeros((2 * batch_size, 256, 2))
-                domain_label[(batch_size):, :, 1] = 0.2 # source: 1 for axis 0
-                domain_label[:(batch_size), :, 1] = 0.8 # target: 1 for axis 1
+                # domain_label = torch.zeros((batch_size, 256, 2))
+                # domain_label[(batch_size//2):, :, 1] = 0.2 # source: 1 for axis 0
+                # domain_label[:(batch_size//2), :, 1] = 0.8 # target: 1 for axis 1
                 
-                domain_label[(batch_size):, :, 0] = 0.8 # source: 1 for axis 0
-                domain_label[:(batch_size), :, 0] = 0.2 # target: 1 for axis 1
+                # domain_label[(batch_size//2):, :, 0] = 0.8 # source: 1 for axis 0
+                # domain_label[:(batch_size//2), :, 0] = 0.2 # target: 1 for axis 1
+                domain_label = torch.zeros((batch_size,2))
+                domain_label[(batch_size//2):, 1] = 0.2 # source: 1 for axis 0
+                domain_label[:(batch_size//2), 1] = 0.8 # target: 1 for axis 1
+                
+                domain_label[(batch_size//2):, 0] = 0.8 # source: 1 for axis 0
+                domain_label[:(batch_size//2), 0] = 0.2 # target: 1 for axis 1
+            # elif f_args.level == 'clip':
+
             # elif f_args.level == 'clip':
             #     domain_label = torch.zeros((batch_size, 2))
             #     domain_label[:18, 1] = 1 # target: 1 for axis 1
@@ -442,24 +451,43 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
         adv_w = 0.5 # weight of adversarial loss
         update_step = 1
+        # output_dim = 4096
+        
         # Update discriminator
         if discriminator is not None:
             optimizer_d.zero_grad()
             optimizer_crnn.zero_grad()
-            real_domain_features = torch.bmm(d_input, strong_pred)
+
+            # 
+            real_f = d_input.view(batch_size, -1)
+            real_g = strong_pred.view(batch_size, -1)
+
+            # d_input_f = torch.mm(d_input_f, Rf.to(d_input_f.device))
+            # weak_pred_g = torch.mm(weak_pred_g, Rg.to(weak_pred_g.device))
+            real_f = torch.mm(real_f, cfg.Rf.to(real_f.device))
+            real_g = torch.mm(real_g, cfg.Rg.to(real_g.device))
+            real_domain_features = torch.mul(real_f, real_g) / np.sqrt(float(cfg.randon_layer_dim))
+            # real_domain_features = real_domain_features.view(batch_size, -1)
             # real_domain_features = real_domain_features.view(-1, 5120)
             # d_input = d_input.permute(0, 2, 1)
             # encoded_x, d_input = model(batch_input)
             real_domain_pred = discriminator(real_domain_features)
+            
 
-            syn_domain_features = torch.bmm(syn_d_input, syn_strong_pred)
+            syn_f = syn_d_input.view(batch_size, -1)
+            syn_g = syn_strong_pred.view(batch_size, -1)
+
+            syn_f = torch.mm(syn_f, cfg.Rf.to(syn_f.device))
+            syn_g = torch.mm(syn_g, cfg.Rg.to(syn_g.device))
+            syn_domain_features = torch.mul(syn_f, syn_g) / np.sqrt(float(cfg.randon_layer_dim))
             # syn_domain_features = syn_domain_features.view(-1, 5120)
             # syn_encoded_x, syn_d_input = model(syn_batch_input)
             syn_domain_pred = discriminator(syn_domain_features)
             
-            # random_choice = np.random.choice(12,6,replace=False)
-            # domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
-            domain_pred = torch.cat((real_domain_pred, syn_domain_pred), 0)
+            
+            random_choice = np.random.choice(batch_size,batch_size//2,replace=False)
+            domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
+            # domain_pred = torch.cat((real_domain_pred, syn_domain_pred), 0)
 
             domain_label_original = domain_label
 
@@ -835,7 +863,7 @@ if __name__ == '__main__':
                    "nb_filters": [16,  32,  64,  128,  128, 128, 128],
                    "pooling": [[2, 2], [2, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]]}
     
-    discriminator_kwargs = {"input_dim": 20, "dropout": 0.5} # default 256
+    discriminator_kwargs = {"input_dim": 1024, "dropout": 0.5} # default 256
     predictor_kwargs = {"nclass":len(cfg.bird_list), "attention":True, "n_RNN_cell":128}
 
     pooling_time_ratio = 4  # 2 * 2
