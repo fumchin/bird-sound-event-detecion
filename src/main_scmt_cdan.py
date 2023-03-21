@@ -440,7 +440,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
 
 
-        adv_w = 1 # weight of adversarial loss
+        adv_w = 0.5 # weight of adversarial loss
         update_step = 1
         # Update discriminator
         if discriminator is not None:
@@ -987,10 +987,15 @@ if __name__ == '__main__':
     # resume training
     else:        
         model_path = os.path.join(saved_model_dir, 'baseline_epoch_{}'.format(start_epoch-1))
-        expe_state = torch.load(model_path, map_location="cpu")
+        expe_state = torch.load(model_path)
         
-        if not f_args.use_fpn:
-            for key in list(expe_state["model"]["state_dict"].keys()): # match keys
+        # if not f_args.use_fpn:
+        #     for key in list(expe_state["model"]["state_dict"].keys()): # match keys
+        #         if 'cnn.' in key:
+        #             expe_state["model"]["state_dict"][key.replace('cnn.', 'cnn.cnn.')] = expe_state["model"]["state_dict"][key]
+        #             del expe_state["model"]["state_dict"][key]
+        if not f_args.use_fpn:        
+            for key in list(expe_state["model"]["state_dict"].keys()):
                 if 'cnn.' in key:
                     expe_state["model"]["state_dict"][key.replace('cnn.', 'cnn.cnn.')] = expe_state["model"]["state_dict"][key]
                     del expe_state["model"]["state_dict"][key]
