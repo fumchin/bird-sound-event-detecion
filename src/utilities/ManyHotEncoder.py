@@ -114,10 +114,16 @@ class ManyHotEncoder:
         if type(label_df) is pd.DataFrame:
             # if {"onset", "offset", "event_label"}.issubset(label_df.columns):
             for _, row in label_df.iterrows():
-                i = self.labels.index(row["Species"])
-                onset = int(row["Begin Time (s)"] * cfg.sr // cfg.hop_size // cfg.pooling_time_ratio)
-                offset = int(row["End Time (s)"] * cfg.sr // cfg.hop_size // cfg.pooling_time_ratio)
-                y[onset:offset, i] = 1  # means offset not included (hypothesis of overlapping frames, so ok)
+                try:
+                    i = self.labels.index(row["Species"])
+                    onset = int(row["Begin Time (s)"] * cfg.sr // cfg.hop_size // cfg.pooling_time_ratio)
+                    offset = int(row["End Time (s)"] * cfg.sr // cfg.hop_size // cfg.pooling_time_ratio)
+                    y[onset:offset, i] = 1  # means offset not included (hypothesis of overlapping frames, so ok)
+                except:
+                    i = self.labels.index(row["event_label"])
+                    onset = int(row["onset"] * cfg.sr // cfg.hop_size // cfg.pooling_time_ratio)
+                    offset = int(row["offset"] * cfg.sr // cfg.hop_size // cfg.pooling_time_ratio)
+                    y[onset:offset, i] = 1  # means offset not included (hypothesis of overlapping frames, so ok)
 
         return y
 
