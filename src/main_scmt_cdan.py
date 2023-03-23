@@ -318,11 +318,11 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
                 domain_label[(batch_size//2):, :, 1] = 0 
                 
                 flipped_domain_label = torch.zeros((batch_size, 313, 2))
-                flipped_domain_label[:(batch_size//2), :, 0] = 0.5 
-                flipped_domain_label[:(batch_size//2), :, 1] = 0.5 
+                flipped_domain_label[:, :, 0] = 0
+                flipped_domain_label[:, :, 1] = 1 
                 
-                flipped_domain_label[(batch_size//2):, :, 0] = 0.5 
-                flipped_domain_label[(batch_size//2):, :, 1] = 0.5 
+                # flipped_domain_label[(batch_size//2):, :, 0] = 0.5 
+                # flipped_domain_label[(batch_size//2):, :, 1] = 0.5 
             # elif f_args.level == 'clip':
 
             # elif f_args.level == 'clip':
@@ -367,13 +367,13 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
         
         
         if discriminator is not None:
-            for param in discriminator.parameters():
-                param.requires_grad = True
+            # for param in discriminator.parameters():
+            #     param.requires_grad = True
             random_choice = np.random.choice(batch_size,batch_size//2,replace=False)
             # =============================================================================================
             # Update discriminator
             # =============================================================================================
-            optimizer_crnn.zero_grad()
+            
             optimizer_d.zero_grad()
 
             syn_encoded_x, syn_d_input = model(syn_batch_input)
@@ -407,8 +407,8 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             domain_loss_d.backward()
             optim_d.step()
 
-
         optimizer_crnn.zero_grad()
+        optimizer.zero_grad()
         syn_encoded_x, syn_d_input = model(syn_batch_input)
         syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
 
@@ -452,16 +452,16 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             # =============================================================================================
             
 
-            for param in discriminator.parameters():
-                param.requires_grad = False
+            # for param in discriminator.parameters():
+            #     param.requires_grad = False
 
             real_domain_features = d_input
             syn_domain_features = syn_d_input
 
-            real_domain_pred = discriminator(real_domain_features)
+            # real_domain_pred = discriminator(real_domain_features)
             syn_domain_pred = discriminator(syn_domain_features)
-            domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
-            domain_loss = adv_w * class_criterion(domain_pred, flipped_domain_label)
+            # domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
+            domain_loss = adv_w * class_criterion(syn_domain_pred, flipped_domain_label)
             # domain_loss.backward()
             # optimizer_crnn.step()
             
