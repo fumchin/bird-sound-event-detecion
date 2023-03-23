@@ -78,14 +78,6 @@ def _load_state_vars(state, median_win=None, use_fpn=False, use_predictor=False)
     many_hot_encoder = ManyHotEncoder.load_state_dict(state["many_hot_encoder"])
     # scaler = _load_scaler(state)
     crnn = _load_crnn(state, use_fpn=use_fpn)
-    # transforms_valid = get_transforms(cfg.max_frames, scaler=scaler, add_axis=0)
-    
-    # strong_dataload = DataLoadDf(pred_df, many_hot_encoder.encode_strong_df, transforms_valid, return_indexes=True)
-    # strong_dataloader_ind = DataLoader(strong_dataload, batch_size=cfg.batch_size, drop_last=False, shuffle=False)
-
-    # # weak dataloader
-    # weak_dataload = DataLoadDf(pred_df, many_hot_encoder.encode_weak, transforms_valid, return_indexes=True)
-    # weak_dataloader_ind = DataLoader(weak_dataload, batch_size=cfg.batch_size, drop_last=False, shuffle=False)
 
     pooling_time_ratio = state["pooling_time_ratio"]
     many_hot_encoder = ManyHotEncoder.load_state_dict(state["many_hot_encoder"])
@@ -185,13 +177,15 @@ if __name__ == '__main__':
     f_args = parser.parse_args()
     # Get variables from f_args
     # median_window, use_fpn, use_predictor = get_variables(f_args)
+    test_model_name = "CRNN_0323_fpn_ada_official_default_lr"
+
     median_window = f_args.median_window
     use_fpn = f_args.use_fpn
     use_predictor = f_args.use_predictor
-    model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", cfg.test_model_name, "model", "baseline_best")
+    model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_best")
     sf = f_args.saved_feature_dir
     if sf:
-        saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", cfg.test_model_name, "embedded_features")
+        saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "embedded_features")
         
     
 
