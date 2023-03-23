@@ -49,7 +49,7 @@ in_memory_unlab = False
 num_workers = 12
 batch_size = 12
 
-model_name = "CRNN_0321_fpn_strong_cdan"
+model_name = "CRNN_0323_fpn_ada_default_lr"
 # model_name = "CRNN_fpn_scmt_grl"
 # model_name = "CRNN_fpn_scmt_test"
 test_model_name = "CRNN_0314_fpn_mt_adjust_lr"
@@ -62,7 +62,7 @@ dataset_random_seed = 1215
 
 randon_layer_dim = 1024
 Rf = torch.randn(80128, randon_layer_dim)
-Rg = torch.randn(3120, randon_layer_dim)
+Rg = torch.randn(6260, randon_layer_dim)
 
 checkpoint_epochs = 1
 save_best = True

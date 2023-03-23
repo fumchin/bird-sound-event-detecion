@@ -179,7 +179,7 @@ if __name__ == '__main__':
     parser.add_argument("-pd", '--use_predictor', default=True,
                     help="Whether to use label predictor.")
     # Dir to save embedding feature
-    parser.add_argument("-sf", '--saved_feature_dir', type=str, default=None,
+    parser.add_argument("-sf", '--saved_feature_dir', action="store_true",
                         help="Path for the embedded features to be saved (if needed), Ex. embedded_feature/ADDA_with_synthetic_clipD_meanteacher_ISP, which kinds of data (weak/strong/synthetic) would be automatically detected")
 
     f_args = parser.parse_args()
@@ -189,6 +189,10 @@ if __name__ == '__main__':
     use_fpn = f_args.use_fpn
     use_predictor = f_args.use_predictor
     model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", cfg.test_model_name, "model", "baseline_best")
+    sf = f_args.sf
+    if sf:
+        saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", cfg.test_model_name, "embedded_features")
+        
     # if f_args.groundtruth_tsv.split('/')[-1] == 'validation.tsv':
     #     data_type = 'strong'
     # elif f_args.groundtruth_tsv.split('/')[-1]== 'weak.tsv':
@@ -247,13 +251,13 @@ if __name__ == '__main__':
                                             params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
                                             median_window=params["median_window"],
                                             save_predictions=f_args.save_predictions_path,
-                                            predictor=params["predictor"], fpn=True, saved_feature_dir=None)
+                                            predictor=params["predictor"], fpn=True, saved_feature_dir=saved_path)
     else:
         valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
                                             params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
                                             median_window=params["median_window"],
                                             save_predictions=f_args.save_predictions_path,
-                                            predictor=params["predictor"], saved_feature_dir=None)
+                                            predictor=params["predictor"], saved_feature_dir=saved_path)
     ct_matrix, valid_real_f1, psds_real_f1 = compute_metrics(valid_predictions, validation_labels_df, durations_validation)
     
     ct_matrix_df = pd.DataFrame(ct_matrix, columns=(sorted(cfg.bird_list) + ["World"]), index=(sorted(cfg.bird_list) + ["World"]))
