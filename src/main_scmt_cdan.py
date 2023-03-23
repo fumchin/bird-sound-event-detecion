@@ -898,20 +898,21 @@ if __name__ == '__main__':
 
 
     scaler_args = []
-    scaler_train_real = Scaler()
-    scaler_train_syn = Scaler()
+    scaler = Scaler()
+    # scaler_train_real = Scaler()
+    # scaler_train_syn = Scaler()
     # # Only on real data since that's our final goal and test data are real
     if cfg.syn_or_not == True:
-        # scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
-        scaler_train_real.calculate_scaler(train_scaler_dataset) 
-        scaler_train_syn.calculate_scaler(syn_scaler_dataset) 
+        scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
+        # scaler_train_real.calculate_scaler(train_scaler_dataset) 
+        # scaler_train_syn.calculate_scaler(syn_scaler_dataset) 
     else:
-        scaler_train_real.calculate_scaler(train_scaler_dataset) 
+        scaler.calculate_scaler(train_scaler_dataset) 
     # train_data, val_data = train_test_split(dataset, random_state=cfg.dataset_random_seed, train_size=0.5)
 
-    transforms_real = get_transforms(cfg.max_frames, scaler_train_real, add_axis_conv,
+    transforms_real = get_transforms(cfg.max_frames, scaler, add_axis_conv,
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    transforms_syn = get_transforms(cfg.max_frames, scaler_train_syn, add_axis_conv,
+    transforms_syn = get_transforms(cfg.max_frames, scaler, add_axis_conv,
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     
 
@@ -1101,9 +1102,9 @@ if __name__ == '__main__':
                     'state_dict': optim_crnn.state_dict()},
             "pooling_time_ratio": pooling_time_ratio,
             "scaler": {
-                "type": type(scaler_train_real).__name__,
+                "type": type(scaler).__name__,
                 "args": scaler_args,
-                "state_dict": scaler_train_real.state_dict()},
+                "state_dict": scaler.state_dict()},
             "many_hot_encoder": many_hot_encoder.state_dict(),
             "median_window": median_window,
             # "desed": dataset.state_dict()
@@ -1136,9 +1137,9 @@ if __name__ == '__main__':
                     'state_dict': optim_crnn.state_dict()},
             "pooling_time_ratio": pooling_time_ratio,
             "scaler": {
-                "type": type(scaler_train_real).__name__,
+                "type": type(scaler).__name__,
                 "args": scaler_args,
-                "state_dict": scaler_train_real.state_dict()},
+                "state_dict": scaler.state_dict()},
             # "scaler": {
             #     "type": type(scaler).__name__,
             #     "args": scaler_args,
