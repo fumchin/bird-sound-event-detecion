@@ -49,11 +49,11 @@ in_memory_unlab = False
 num_workers = 12
 batch_size = 12
 
-model_name = "CRNN_0323_fpn_ada_official_default_lr_advw_2.5"
-# model_name = "CRNN_fpn_scmt_grl"
+# model_name = "CRNN_0323_fpn_ada_official_default_lr_advw_10"
+model_name = "CRNN_fpn"
 # model_name = "CRNN_fpn_scmt_test"
 test_model_name = "CRNN_0314_fpn_mt_adjust_lr"
-syn_or_not = True
+syn_or_not = False
 n_epoch = 300 #, variance after 100 may be too large
 n_epoch_rampup = 50
 n_epoch_rampdown = 80
