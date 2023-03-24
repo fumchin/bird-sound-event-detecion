@@ -361,7 +361,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
 
 
-        adv_w = 0.5 # weight of adversarial loss
+        adv_w = 2.5 # weight of adversarial loss
         update_step = 1
         # output_dim = 4096
         

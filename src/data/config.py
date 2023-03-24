@@ -49,7 +49,7 @@ in_memory_unlab = False
 num_workers = 12
 batch_size = 12
 
-model_name = "CRNN_0323_fpn_ada_official_default_lr"
+model_name = "CRNN_0323_fpn_ada_official_default_lr_advw_2.5"
 # model_name = "CRNN_fpn_scmt_grl"
 # model_name = "CRNN_fpn_scmt_test"
 test_model_name = "CRNN_0314_fpn_mt_adjust_lr"
