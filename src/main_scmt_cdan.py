@@ -65,7 +65,7 @@ def adjust_learning_rate(optimizer, rampup_value, rampdown_value=1, optimizer_d=
     # weight_decay = (1 - rampup_value) * cfg.weight_decay_during_rampup + cfg.weight_decay_after_rampup * rampup_value
 
     # if c_epoch % 25 == 0:
-    # lr = 0.001 * pow(0.1, c_epoch//20)
+    # lr = 0.001 * pow(0.5, c_epoch//20)
     # lr_adv = lr_adv * 0.1
     
     for param_group in optimizer.param_groups:
@@ -75,6 +75,7 @@ def adjust_learning_rate(optimizer, rampup_value, rampdown_value=1, optimizer_d=
 
     if optimizer_d != None:
         for param_group in optimizer_d.param_groups:
+            # param_group['lr'] = lr * 0.1
             param_group['lr'] = lr * 0.1
 
     if optimizer_crnn != None:
@@ -281,18 +282,65 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
         # Generate DA labels for training discriminator
         batch_size = cfg.batch_size
         if discriminator is not None:
-            if f_args.level == 'frame':
-                domain_label = torch.zeros((batch_size, 313, 2))
-                domain_label[(batch_size//2):, :, 1] = 0.2 # source: 1 for axis 0
-                domain_label[:(batch_size//2), :, 1] = 0.8 # target: 1 for axis 1
+            # domain_label = torch.zeros((batch_size, 2))
+            # domain_label[(batch_size//2):, 1] = 0.2 # source: 1 for axis 0
+            # domain_label[:(batch_size//2), 1] = 0.8 # target: 1 for axis 1
                 
-                domain_label[(batch_size//2):, :, 0] = 0.8 # source: 1 for axis 0
-                domain_label[:(batch_size//2), :, 0] = 0.2 # target: 1 for axis 1
-            elif f_args.level == 'clip':
-                domain_label = torch.zeros((12, 2))
-                domain_label[:18, 1] = 1 # target: 1 for axis 1
-                domain_label[18:, 0] = 1 # source: 1 for axis 0
-            batch_input, ema_batch_input, target, domain_label = to_cuda_if_available(batch_input, ema_batch_input, target, domain_label)
+            # domain_label[(batch_size//2):, 0] = 0.8 # source: 1 for axis 0
+            # domain_label[:(batch_size//2), 0] = 0.2 # target: 1 for axis 1
+            if f_args.level == 'frame':
+                # domain_label = torch.zeros((batch_size, 256, 2))
+                # domain_label[(batch_size//2):, :, 1] = 0.2 # source: 1 for axis 0
+                # domain_label[:(batch_size//2), :, 1] = 0.8 # target: 1 for axis 1
+                
+                # domain_label[(batch_size//2):, :, 0] = 0.8 # source: 1 for axis 0
+                # domain_label[:(batch_size//2), :, 0] = 0.2 # target: 1 for axis 1
+                # domain_label = torch.zeros((batch_size,2))
+                
+                # domain_label[:(batch_size//2), 0] = 0 
+                # domain_label[:(batch_size//2), 1] = 1 
+                
+                # domain_label[(batch_size//2):, 0] = 1 
+                # domain_label[(batch_size//2):, 1] = 0 
+                
+                # flipped_domain_label = torch.zeros((batch_size,2))
+                # flipped_domain_label[:(batch_size//2), 0] = 1 
+                # flipped_domain_label[:(batch_size//2), 1] = 0 
+                
+                # flipped_domain_label[(batch_size//2):, 0] = 0 
+                # flipped_domain_label[(batch_size//2):, 1] = 1 
+                domain_label = torch.zeros((batch_size, 313,2))
+                
+                domain_label[:(batch_size//2), :, 0] = 0 
+                domain_label[:(batch_size//2), :, 1] = 1 
+                
+                domain_label[(batch_size//2):, :, 0] = 1 
+                domain_label[(batch_size//2):, :, 1] = 0 
+                
+                flipped_domain_label = torch.zeros((batch_size, 313, 2))
+                flipped_domain_label[:, :, 0] = 0
+                flipped_domain_label[:, :, 1] = 1 
+                
+                # flipped_domain_label[(batch_size//2):, :, 0] = 0.5 
+                # flipped_domain_label[(batch_size//2):, :, 1] = 0.5 
+            # elif f_args.level == 'clip':
+
+            # elif f_args.level == 'clip':
+            #     domain_label = torch.zeros((batch_size, 2))
+            #     domain_label[:18, 1] = 1 # target: 1 for axis 1
+            #     domain_label[18:, 0] = 1 # source: 1 for axis 0
+            # if f_args.level == 'frame':
+            #     domain_label = torch.zeros((batch_size, 313, 2))
+            #     domain_label[(batch_size//2):, :, 1] = 0.2 # source: 1 for axis 0
+            #     domain_label[:(batch_size//2), :, 1] = 0.8 # target: 1 for axis 1
+                
+            #     domain_label[(batch_size//2):, :, 0] = 0.8 # source: 1 for axis 0
+            #     domain_label[:(batch_size//2), :, 0] = 0.2 # target: 1 for axis 1
+            # elif f_args.level == 'clip':
+            #     domain_label = torch.zeros((12, 2))
+            #     domain_label[:18, 1] = 1 # target: 1 for axis 1
+            #     domain_label[18:, 0] = 1 # source: 1 for axis 0
+            batch_input, ema_batch_input, target, domain_label, flipped_domain_label = to_cuda_if_available(batch_input, ema_batch_input, target, domain_label, flipped_domain_label)
             syn_batch_input, syn_ema_batch_input, syn_target = to_cuda_if_available(syn_batch_input, syn_ema_batch_input, syn_target)
         else:
             batch_input, ema_batch_input, target = to_cuda_if_available(batch_input, ema_batch_input, target)
@@ -300,6 +348,124 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
         
         # Outputs
+        
+        
+        
+
+        # Update feature extractor and predictor
+        if discriminator is not None:
+            optimizer_d.zero_grad() 
+        optimizer_crnn.zero_grad()
+
+        
+
+
+
+        adv_w = 2.5 # weight of adversarial loss
+        update_step = 1
+        # output_dim = 4096
+        
+        
+        if discriminator is not None:
+            # for param in discriminator.parameters():
+            #     param.requires_grad = True
+            random_choice = np.random.choice(batch_size,batch_size//2,replace=False)
+            # =============================================================================================
+            # Update discriminator
+            # =============================================================================================
+            
+            optimizer_d.zero_grad()
+
+            syn_encoded_x, syn_d_input = model(syn_batch_input)
+            syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
+
+            encoded_x, d_input = model(batch_input)
+            strong_pred, weak_pred = predictor(encoded_x)
+
+            # real_f = d_input.view(batch_size, -1)
+            # real_g = strong_pred.view(batch_size, -1)
+
+            # real_f = torch.mm(real_f, cfg.Rf.to(real_f.device))
+            # real_g = torch.mm(real_g, cfg.Rg.to(real_g.device))
+            # real_domain_features = torch.mul(real_f, real_g) / np.sqrt(float(cfg.randon_layer_dim))
+            
+            
+
+            # syn_f = syn_d_input.view(batch_size, -1)
+            # syn_g = syn_strong_pred.view(batch_size, -1)
+
+            # syn_f = torch.mm(syn_f, cfg.Rf.to(syn_f.device))
+            # syn_g = torch.mm(syn_g, cfg.Rg.to(syn_g.device))
+            # syn_domain_features = torch.mul(syn_f, syn_g) / np.sqrt(float(cfg.randon_layer_dim))
+            real_domain_features = d_input
+            syn_domain_features = syn_d_input
+
+            real_domain_pred_d = discriminator(real_domain_features.detach())
+            syn_domain_pred_d = discriminator(syn_domain_features.detach())
+            domain_pred_d = torch.cat((real_domain_pred_d[random_choice], syn_domain_pred_d[random_choice]), 0)
+            domain_loss_d = adv_w * class_criterion(domain_pred_d, domain_label)
+            domain_loss_d.backward()
+            optim_d.step()
+
+        optimizer_crnn.zero_grad()
+        optimizer.zero_grad()
+        syn_encoded_x, syn_d_input = model(syn_batch_input)
+        syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
+
+        encoded_x, d_input = model(batch_input)
+        strong_pred, weak_pred = predictor(encoded_x)
+
+        if discriminator is not None:
+            # =============================================================================================
+            # Update Generator
+            # =============================================================================================
+            
+
+            # random_choice = np.random.choice(batch_size,batch_size//2,replace=False)
+            # domain_label_original = domain_label
+            
+
+            # real_f = d_input.view(batch_size, -1)
+            # real_g = strong_pred.view(batch_size, -1)
+
+            # # d_input_f = torch.mm(d_input_f, Rf.to(d_input_f.device))
+            # # weak_pred_g = torch.mm(weak_pred_g, Rg.to(weak_pred_g.device))
+            # real_f = torch.mm(real_f, cfg.Rf.to(real_f.device))
+            # real_g = torch.mm(real_g, cfg.Rg.to(real_g.device))
+            # real_domain_features = torch.mul(real_f, real_g) / np.sqrt(float(cfg.randon_layer_dim))
+            
+            
+
+            # syn_f = syn_d_input.view(batch_size, -1)
+            # syn_g = syn_strong_pred.view(batch_size, -1)
+
+            # syn_f = torch.mm(syn_f, cfg.Rf.to(syn_f.device))
+            # syn_g = torch.mm(syn_g, cfg.Rg.to(syn_g.device))
+            # syn_domain_features = torch.mul(syn_f, syn_g) / np.sqrt(float(cfg.randon_layer_dim))
+            
+            
+            
+            
+
+            # =============================================================================================
+            # Update generator
+            # =============================================================================================
+            
+
+            # for param in discriminator.parameters():
+            #     param.requires_grad = False
+
+            real_domain_features = d_input
+            syn_domain_features = syn_d_input
+
+            # real_domain_pred = discriminator(real_domain_features)
+            syn_domain_pred = discriminator(syn_domain_features)
+            # domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
+            domain_loss = adv_w * class_criterion(syn_domain_pred, flipped_domain_label)
+            domain_loss.backward()
+            optimizer_crnn.step()
+            
+            
         if ema_model != None:
             encoded_x_ema, _ = ema_model(ema_batch_input)
             strong_pred_ema, weak_pred_ema = ema_predictor(encoded_x_ema)
@@ -316,133 +482,8 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
                 strong_pred_freq_shift_ema, weak_pred_freq_shift_ema = ema_predictor(encoded_x_freq_shift_ema)
                 strong_pred_freq_shift_ema = strong_pred_freq_shift_ema.detach()
                 weak_pred_freq_shift_ema = weak_pred_freq_shift_ema.detach()
-
-            # syn_encoded_x_ema, _ = ema_model(syn_ema_batch_input)
-            # syn_strong_pred_ema, syn_weak_pred_ema = ema_predictor(syn_encoded_x_ema)
-            # syn_strong_pred_ema = syn_strong_pred_ema.detach()
-            # syn_weak_pred_ema = syn_weak_pred_ema.detach()
         
-        # adv_w = 0.5 # weight of adversarial loss
-        # update_step = 1
-        # # Update discriminator
-        # if discriminator is not None:
-        #     optimizer_d.zero_grad()
-        #     optimizer_crnn.zero_grad()
-
-
-        #     encoded_x, d_input = model(batch_input)
-        #     real_domain_pred = discriminator(d_input.detach())
-
-        #     syn_encoded_x, syn_d_input = model(syn_batch_input)
-        #     syn_domain_pred = discriminator(syn_d_input.detach())
-            
-        #     random_choice = np.random.choice(12,6,replace=False)
-        #     domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
-
-        #     domain_label_original = domain_label
-
-        #     domain_loss_d = adv_w * class_criterion(domain_pred, domain_label_original)
-
-            # domain_loss_d.backward()
-            # optimizer_d.step()
-            # optim_crnn.step()
-
-        # adv_w = 2.5 # weight of adversarial loss
-        # update_step = 2
-        # # Update discriminator
-        # if discriminator is not None:
-        #     if global_step % update_step == 0:
-        #         optimizer_d.zero_grad()
-        #         encoded_x, d_input = model(batch_input)
-        #         real_domain_pred = discriminator(d_input.detach())
-
-        #         syn_encoded_x, syn_d_input = model(syn_batch_input)
-        #         syn_domain_pred = discriminator(syn_d_input.detach())
-
-                 
-        #         # To balance source and target amount
-        #         random_choice = np.random.choice(12,6,replace=False)
-        #         syn_random_choice = [x+12 for x in random_choice]
-        #         choice = np.append(random_choice,syn_random_choice)
-                
-        #         domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
-
-        #         # domain_pred = domain_pred[choice]
-        #         # domain_label_original = domain_label[choice]
-        #         domain_label_original = domain_label
-
-        #         domain_loss_d = adv_w * class_criterion(domain_pred, domain_label_original)
-        #         domain_loss_d.backward()
-        #         optimizer_d.step()
-                
-
-        # # Update feature extractor
-        # if discriminator is not None:
-        #     if global_step % update_step == 0:
-        #         optimizer_d.zero_grad()     
-        #         optimizer_crnn.zero_grad()
-
-        #         encoded_x, d_input = model(batch_input)
-        #         real_domain_pred = discriminator(d_input)
-
-        #         # syn_encoded_x, syn_d_input = model(syn_batch_input)
-        #         # syn_domain_pred = discriminator(syn_d_input)
-
-        #         # Generate domain labels for training feature extractor
-        #         if f_args.level == 'frame':
-        #             domain_label = torch.zeros((batch_size, 313, 2))
-        #             domain_label[:batch_size, :, 0] = 1 # target: 1 for axis 0
-        #         elif f_args.level == 'clip':
-        #             domain_label = torch.zeros((batch_size, 2))
-        #             domain_label[:batch_size, 0] = 1
-                
-        #         domain_label = to_cuda_if_available(domain_label)
-                
-        #         # To balance source and target amount
-        #         choice = np.random.choice(batch_size,batch_size//2,replace=False)
-        #         domain_pred = real_domain_pred[choice]
-        #         domain_label_original = domain_label[choice]    
-
-
-        #         domain_loss = adv_w * class_criterion(domain_pred, domain_label_original)
-        #         domain_loss.backward()
-        #         optimizer_crnn.step()
-        
-
-        # Update feature extractor and predictor
-        optimizer.zero_grad()
-        if discriminator is not None:
-            optimizer_d.zero_grad() 
-        optimizer_crnn.zero_grad()
-
-        syn_encoded_x, syn_d_input = model(syn_batch_input)
-        syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
-
-        encoded_x, d_input = model(batch_input)
-        strong_pred, weak_pred = predictor(encoded_x)
-
-
-
-        adv_w = 0.5 # weight of adversarial loss
-        update_step = 1
-        # Update discriminator
-        if discriminator is not None:
-            optimizer_d.zero_grad()
-            optimizer_crnn.zero_grad()
-
-
-            # encoded_x, d_input = model(batch_input)
-            real_domain_pred = discriminator(d_input)
-
-            # syn_encoded_x, syn_d_input = model(syn_batch_input)
-            syn_domain_pred = discriminator(syn_d_input)
-            
-            random_choice = np.random.choice(12,6,replace=False)
-            domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
-
-            domain_label_original = domain_label
-
-            domain_loss_d = adv_w * class_criterion(domain_pred, domain_label_original)
+    
 
         if ISP:
             # Prediction and target(strong) shift
@@ -637,6 +678,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
  
  
         # Calculate loss for labeled data
+        
         loss = strong_class_loss + weak_class_loss
         
         if ema_model is not None:
@@ -652,7 +694,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             loss = loss + (consistency_loss_strong_shift + consistency_loss_weak_shift) + (consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
         
         if discriminator is not None:
-            loss += domain_loss_d
+            loss += domain_loss
         
         writer.add_scalar('Loss', loss.item(), niter)
         if discriminator is not None:
@@ -660,7 +702,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             
             if global_step % update_step == 0:
                 writer.add_scalar('Decoder domain loss', domain_loss_d.item(), niter)   
-                # writer.add_scalar('Feature extractor domain loss', domain_loss.item(), niter)
+                writer.add_scalar('Feature extractor domain loss', domain_loss.item(), niter)
             
         writer.add_scalar('Strong class loss', strong_class_loss.item(), niter)
 
@@ -689,10 +731,13 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
         
         # Compute gradient and do optimizer step
-        loss.backward()
-        optimizer.step()
-        if discriminator is not None:
-            optimizer_d.step()
+        # optimizer.zero_grad()
+        # loss.backward()
+        # optimizer.step()
+        # if discriminator:
+        #     optimizer_crnn.step()
+        # if discriminator is not None:
+        #     optimizer_d.step()
 
         global_step += 1
         if ema_model is not None:
@@ -856,19 +901,25 @@ if __name__ == '__main__':
 
     scaler_args = []
     scaler = Scaler()
+    # scaler_train_real = Scaler()
+    # scaler_train_syn = Scaler()
     # # Only on real data since that's our final goal and test data are real
     if cfg.syn_or_not == True:
         scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
+        # scaler_train_real.calculate_scaler(train_scaler_dataset) 
+        # scaler_train_syn.calculate_scaler(syn_scaler_dataset) 
     else:
         scaler.calculate_scaler(train_scaler_dataset) 
     # train_data, val_data = train_test_split(dataset, random_state=cfg.dataset_random_seed, train_size=0.5)
 
-    transforms = get_transforms(cfg.max_frames, scaler, add_axis_conv,
+    transforms_real = get_transforms(cfg.max_frames, scaler, add_axis_conv,
+                            noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
+    transforms_syn = get_transforms(cfg.max_frames, scaler, add_axis_conv,
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     
 
-    train_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
-    syn_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
+    train_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms_real, compute_log=True)
+    syn_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_syn, compute_log=True)
 
     scaler_val = Scaler()
     scaler_val.calculate_scaler(val_scaler_dataset) 
@@ -966,10 +1017,15 @@ if __name__ == '__main__':
     # resume training
     else:        
         model_path = os.path.join(saved_model_dir, 'baseline_epoch_{}'.format(start_epoch-1))
-        expe_state = torch.load(model_path, map_location="cpu")
+        expe_state = torch.load(model_path)
         
-        if not f_args.use_fpn:
-            for key in list(expe_state["model"]["state_dict"].keys()): # match keys
+        # if not f_args.use_fpn:
+        #     for key in list(expe_state["model"]["state_dict"].keys()): # match keys
+        #         if 'cnn.' in key:
+        #             expe_state["model"]["state_dict"][key.replace('cnn.', 'cnn.cnn.')] = expe_state["model"]["state_dict"][key]
+        #             del expe_state["model"]["state_dict"][key]
+        if not f_args.use_fpn:        
+            for key in list(expe_state["model"]["state_dict"].keys()):
                 if 'cnn.' in key:
                     expe_state["model"]["state_dict"][key.replace('cnn.', 'cnn.cnn.')] = expe_state["model"]["state_dict"][key]
                     del expe_state["model"]["state_dict"][key]
@@ -1086,6 +1142,11 @@ if __name__ == '__main__':
                 "type": type(scaler).__name__,
                 "args": scaler_args,
                 "state_dict": scaler.state_dict()},
+            # "scaler": {
+            #     "type": type(scaler).__name__,
+            #     "args": scaler_args,
+            #     "state_dict": scaler.state_dict()},
+                    
             "many_hot_encoder": many_hot_encoder.state_dict(),
             "median_window": median_window,
             # "desed": dataset.state_dict()

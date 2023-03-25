@@ -68,7 +68,7 @@ class Frame_Discriminator(nn.Module):
         super(Frame_Discriminator, self).__init__()
         self.dense_d_1 = nn.Linear(input_dim, 1024)
         self.dense_d_2 = nn.Linear(1024, 1024)
-        self.dense_d_3 = nn.Linear(1024, 2)
+        self.dense_d_3 = nn.Linear(1024, 2) 
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
         self.dropout = nn.Dropout(dropout) 
@@ -76,7 +76,7 @@ class Frame_Discriminator(nn.Module):
  
     
     def forward(self, x):
-        x = grad_reverse(x)
+        # x = grad_reverse(x)
         x = self.relu(self.dense_d_1(x))
         x = self.dropout(x)
         x = self.relu(self.dense_d_2(x))
@@ -264,11 +264,11 @@ class CRNN_fpn(nn.Module):
         x_2 = self.conv1x1_2(x_2)
         x = torch.cat((x, self.upsample_2(x_2)), 1)
         x = self.conv1x1_4(x).squeeze(-1)
-
-        x = x.permute(0, 2, 1)
         
+        x = x.permute(0, 2, 1)
+        d_input = x
         # x = self.dropout(x)
-        d_input = x 
+        # d_input = x.permute(0, 2, 1)
              
         return x, d_input
 

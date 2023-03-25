@@ -737,7 +737,7 @@ if __name__ == '__main__':
                    "nb_filters": [16,  32,  64,  128,  128, 128, 128],
                    "pooling": [[2, 2], [2, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]]}
     
-    discriminator_kwargs = {"input_dim": 256, "dropout": 0.5} # default 256
+    discriminator_kwargs = {"input_dim": 256*20, "dropout": 0.5} # default 256
     predictor_kwargs = {"nclass":len(cfg.bird_list), "attention":True, "n_RNN_cell":128}
 
     pooling_time_ratio = 4  # 2 * 2

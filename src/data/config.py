@@ -1,6 +1,7 @@
 import logging
 import math
 import os, os.path
+import torch
 # path related
 dataset_root = "/home/fumchin/data/bsed_20/dataset/ENA"
 feature_dir = os.path.join(dataset_root, "preprocess")
@@ -48,15 +49,22 @@ in_memory_unlab = False
 num_workers = 12
 batch_size = 12
 
-model_name = "CRNN_0319_fpn_grl_smooth"
-# model_name = "CRNN_fpn_scmt_grl"
+# model_name = "CRNN_0323_fpn_ada_official_default_lr_advw_10"
+# model_name = "CRNN_fpn"
 # model_name = "CRNN_fpn_scmt_test"
-test_model_name = "CRNN_0315_fpn_grl_05"
+
+model_name = 'only_ada_no_prediction_2'
+test_model_name = "CRNN_0314_fpn_mt_adjust_lr"
 syn_or_not = True
 n_epoch = 300 #, variance after 100 may be too large
 n_epoch_rampup = 50
 n_epoch_rampdown = 80
 dataset_random_seed = 1215
+
+
+randon_layer_dim = 1024
+Rf = torch.randn(80128, randon_layer_dim)
+Rg = torch.randn(6260, randon_layer_dim)
 
 checkpoint_epochs = 1
 save_best = True
