@@ -177,7 +177,7 @@ if __name__ == '__main__':
     f_args = parser.parse_args()
     # Get variables from f_args
     # median_window, use_fpn, use_predictor = get_variables(f_args)
-    test_model_name = "CRNN_0323_fpn_ada_official_default_lr_advw_1"
+    test_model_name = "CRNN_fpn"
 
     median_window = f_args.median_window
     use_fpn = f_args.use_fpn
