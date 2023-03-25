@@ -50,8 +50,9 @@ num_workers = 12
 batch_size = 12
 
 # model_name = "CRNN_0323_fpn_ada_official_default_lr_advw_10"
-model_name = "CRNN_fpn"
+# model_name = "CRNN_fpn"
 # model_name = "CRNN_fpn_scmt_test"
+model_name = 'only_ada_no_prediction'
 test_model_name = "CRNN_0314_fpn_mt_adjust_lr"
 syn_or_not = False
 n_epoch = 300 #, variance after 100 may be too large

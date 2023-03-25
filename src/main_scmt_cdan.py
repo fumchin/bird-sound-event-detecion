@@ -361,7 +361,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
 
 
-        adv_w = 10 # weight of adversarial loss
+        adv_w = 2.5 # weight of adversarial loss
         update_step = 1
         # output_dim = 4096
         
@@ -462,8 +462,8 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             syn_domain_pred = discriminator(syn_domain_features)
             # domain_pred = torch.cat((real_domain_pred[random_choice], syn_domain_pred[random_choice]), 0)
             domain_loss = adv_w * class_criterion(syn_domain_pred, flipped_domain_label)
-            # domain_loss.backward()
-            # optimizer_crnn.step()
+            domain_loss.backward()
+            optimizer_crnn.step()
             
             
         if ema_model != None:
@@ -732,10 +732,10 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
         
         # Compute gradient and do optimizer step
         # optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        if discriminator:
-            optimizer_crnn.step()
+        # loss.backward()
+        # optimizer.step()
+        # if discriminator:
+        #     optimizer_crnn.step()
         # if discriminator is not None:
         #     optimizer_d.step()
 
