@@ -123,7 +123,9 @@ def svm_classfication(ADA_synth_feature, ADA_real_feature, No_ADA_synth_feature,
 
 if __name__ == '__main__':
     # model_list = ['fum_IP_fusion', 'fum_IP_fusion_2', 'fum_IP_fusion_3', 'fum_IP_fusion_4', 'fum_IP_fusion_5', 'fum_IP_fusion_6']
-    model_list = ['CRNN_0323_fpn_ada_official_default_lr_advw_10', 'CRNN_0323_fpn_ada_official_default_lr_advw_5', 'CRNN_fpn']
+    # model_list = ['CRNN_0323_fpn_ada_official_default_lr_advw_10', 'CRNN_0323_fpn_ada_official_default_lr_advw_5', 'CRNN_fpn']
+    # model_list = ['only_fixed_ada_no_prediction_', 'only_ada_no_prediction', 'only_ada_no_prediction_2']
+    model_list = ['CRNN_0326_cdan_ada']
     for model_name in model_list:
         print(model_name)
         ADA_path = os.path.join("./stored_data", model_name, "embedded_features")

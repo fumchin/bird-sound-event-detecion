@@ -68,7 +68,7 @@ class Frame_Discriminator(nn.Module):
         super(Frame_Discriminator, self).__init__()
         self.dense_d_1 = nn.Linear(input_dim, 1024)
         self.dense_d_2 = nn.Linear(1024, 1024)
-        self.dense_d_3 = nn.Linear(1024, 2) 
+        self.dense_d_3 = nn.Linear(1024, 1) 
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
         self.dropout = nn.Dropout(dropout) 

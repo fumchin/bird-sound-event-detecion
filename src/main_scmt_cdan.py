@@ -309,17 +309,17 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
                 
                 # flipped_domain_label[(batch_size//2):, 0] = 0 
                 # flipped_domain_label[(batch_size//2):, 1] = 1 
-                domain_label = torch.zeros((batch_size, 313,2))
+                domain_label = torch.zeros((batch_size,1))
                 
-                domain_label[:(batch_size//2), :, 0] = 0 
-                domain_label[:(batch_size//2), :, 1] = 1 
+                domain_label[:(batch_size//2), :] = 0 
+                # domain_label[:(batch_size//2), :, :] = 1 
                 
-                domain_label[(batch_size//2):, :, 0] = 1 
-                domain_label[(batch_size//2):, :, 1] = 0 
+                domain_label[(batch_size//2):, :] = 1 
+                # domain_label[(batch_size//2):, :, 1] = 0 
                 
-                flipped_domain_label = torch.zeros((batch_size, 313, 2))
-                flipped_domain_label[:, :, 0] = 0
-                flipped_domain_label[:, :, 1] = 1 
+                flipped_domain_label = torch.zeros((batch_size, 1))
+                flipped_domain_label[:, :] = 0
+                # flipped_domain_label[:, :, 1] = 1 
                 
                 # flipped_domain_label[(batch_size//2):, :, 0] = 0.5 
                 # flipped_domain_label[(batch_size//2):, :, 1] = 0.5 
@@ -361,11 +361,11 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
 
 
-        adv_w = 2.5 # weight of adversarial loss
+        adv_w = 1 # weight of adversarial loss
         update_step = 1
         # output_dim = 4096
         
-        
+        batch_size = cfg.batch_size
         if discriminator is not None:
             # for param in discriminator.parameters():
             #     param.requires_grad = True
@@ -382,40 +382,43 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             encoded_x, d_input = model(batch_input)
             strong_pred, weak_pred = predictor(encoded_x)
 
-            # real_f = d_input.view(batch_size, -1)
-            # real_g = strong_pred.view(batch_size, -1)
+            real_f = d_input.reshape(batch_size, -1)
+            real_g = strong_pred.reshape(batch_size, -1)
 
-            # real_f = torch.mm(real_f, cfg.Rf.to(real_f.device))
-            # real_g = torch.mm(real_g, cfg.Rg.to(real_g.device))
-            # real_domain_features = torch.mul(real_f, real_g) / np.sqrt(float(cfg.randon_layer_dim))
+            real_f = torch.mm(real_f, cfg.Rf.to(real_f.device))
+            real_g = torch.mm(real_g, cfg.Rg.to(real_g.device))
+            real_domain_features = torch.mul(real_f, real_g) / np.sqrt(float(cfg.randon_layer_dim))
             
             
 
-            # syn_f = syn_d_input.view(batch_size, -1)
-            # syn_g = syn_strong_pred.view(batch_size, -1)
+            syn_f = syn_d_input.reshape(batch_size, -1)
+            syn_g = syn_strong_pred.reshape(batch_size, -1)
 
-            # syn_f = torch.mm(syn_f, cfg.Rf.to(syn_f.device))
-            # syn_g = torch.mm(syn_g, cfg.Rg.to(syn_g.device))
-            # syn_domain_features = torch.mul(syn_f, syn_g) / np.sqrt(float(cfg.randon_layer_dim))
-            real_domain_features = d_input
-            syn_domain_features = syn_d_input
+            syn_f = torch.mm(syn_f, cfg.Rf.to(syn_f.device))
+            syn_g = torch.mm(syn_g, cfg.Rg.to(syn_g.device))
+            syn_domain_features = torch.mul(syn_f, syn_g) / np.sqrt(float(cfg.randon_layer_dim))
+            
+            # real_domain_features = d_input.reshape(batch_size, -1)
+            # syn_domain_features = syn_d_input.reshape(batch_size, -1)
 
-            real_domain_pred_d = discriminator(real_domain_features.detach())
+            # real_domain_features = d_input
+            # syn_domain_features = syn_d_input
+
+            real_domain_pred_d = discriminator(real_domain_features)
             syn_domain_pred_d = discriminator(syn_domain_features.detach())
             domain_pred_d = torch.cat((real_domain_pred_d[random_choice], syn_domain_pred_d[random_choice]), 0)
             domain_loss_d = adv_w * class_criterion(domain_pred_d, domain_label)
             domain_loss_d.backward()
             optim_d.step()
 
-        optimizer_crnn.zero_grad()
-        optimizer.zero_grad()
-        syn_encoded_x, syn_d_input = model(syn_batch_input)
-        syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
-
-        encoded_x, d_input = model(batch_input)
-        strong_pred, weak_pred = predictor(encoded_x)
+        
 
         if discriminator is not None:
+            optimizer_crnn.zero_grad()
+            syn_encoded_x, syn_d_input = model(syn_batch_input)
+            syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
+        
+        
             # =============================================================================================
             # Update Generator
             # =============================================================================================
@@ -436,12 +439,12 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             
             
 
-            # syn_f = syn_d_input.view(batch_size, -1)
-            # syn_g = syn_strong_pred.view(batch_size, -1)
+            syn_f = syn_d_input.reshape(batch_size, -1)
+            syn_g = syn_strong_pred.reshape(batch_size, -1)
 
-            # syn_f = torch.mm(syn_f, cfg.Rf.to(syn_f.device))
-            # syn_g = torch.mm(syn_g, cfg.Rg.to(syn_g.device))
-            # syn_domain_features = torch.mul(syn_f, syn_g) / np.sqrt(float(cfg.randon_layer_dim))
+            syn_f = torch.mm(syn_f, cfg.Rf.to(syn_f.device))
+            syn_g = torch.mm(syn_g, cfg.Rg.to(syn_g.device))
+            syn_domain_features = torch.mul(syn_f, syn_g) / np.sqrt(float(cfg.randon_layer_dim))
             
             
             
@@ -454,9 +457,12 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
             # for param in discriminator.parameters():
             #     param.requires_grad = False
+            
+            # real_domain_features = d_input.reshape(batch_size, -1)
+            # syn_domain_features = syn_d_input.reshape(batch_size, -1)
 
-            real_domain_features = d_input
-            syn_domain_features = syn_d_input
+            # real_domain_features = d_input
+            # syn_domain_features = syn_d_input
 
             # real_domain_pred = discriminator(real_domain_features)
             syn_domain_pred = discriminator(syn_domain_features)
@@ -465,6 +471,12 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             domain_loss.backward()
             optimizer_crnn.step()
             
+        optimizer.zero_grad()
+        syn_encoded_x, syn_d_input = model(syn_batch_input)
+        syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
+
+        encoded_x, d_input = model(batch_input)
+        strong_pred, weak_pred = predictor(encoded_x)
             
         if ema_model != None:
             encoded_x_ema, _ = ema_model(ema_batch_input)
@@ -693,8 +705,8 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             # loss = loss + (weak_freq_shift_class_loss + mixup_weak_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + mixup_strong_class_loss + mixup_consistency_weak_loss + mixup_consistency_strong_loss + consistency_loss_shift)
             loss = loss + (consistency_loss_strong_shift + consistency_loss_weak_shift) + (consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
         
-        if discriminator is not None:
-            loss += domain_loss
+        # if discriminator is not None:
+        #     loss += domain_loss
         
         writer.add_scalar('Loss', loss.item(), niter)
         if discriminator is not None:
@@ -732,8 +744,8 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
         
         # Compute gradient and do optimizer step
         # optimizer.zero_grad()
-        # loss.backward()
-        # optimizer.step()
+        loss.backward()
+        optimizer.step()
         # if discriminator:
         #     optimizer_crnn.step()
         # if discriminator is not None:
@@ -837,7 +849,7 @@ if __name__ == '__main__':
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 0
+    start_epoch = 1
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -859,7 +871,7 @@ if __name__ == '__main__':
                    "nb_filters": [16,  32,  64,  128,  128, 128, 128],
                    "pooling": [[2, 2], [2, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]]}
     
-    discriminator_kwargs = {"input_dim": 256, "dropout": 0.5} # default 256
+    discriminator_kwargs = {"input_dim": 8192, "dropout": 0.5} # default 256
     predictor_kwargs = {"nclass":len(cfg.bird_list), "attention":True, "n_RNN_cell":128}
 
     pooling_time_ratio = 4  # 2 * 2
