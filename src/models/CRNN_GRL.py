@@ -172,7 +172,7 @@ class CRNN(nn.Module):
 
         x = self.dropout(x)
         d_input = x 
-
+        
         return x, d_input
 
 

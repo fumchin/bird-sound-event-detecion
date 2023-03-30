@@ -163,6 +163,7 @@ def get_predictions(model, dataloader, decoder, pooling_time_ratio=1, thresholds
         with torch.no_grad():
             if predictor != None:
                 encoded_x, feature_out = model(input_data)
+                # feature_out = feature_out.reshape(feature_out.shape[0], -1)
                 if fpn:
                     pred_strong, _ = predictor(encoded_x, inference=True)
                 else:
