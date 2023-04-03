@@ -27,7 +27,8 @@ from TestModel import _load_crnn
 from evaluation_measures import get_predictions, psds_score, compute_psds_from_operating_points, compute_metrics, get_f_measure_by_class
 from models.CRNN_GRL import CRNN_fpn, CRNN, Predictor, Frame_Discriminator, Clip_Discriminator
 # from DA.cdan import ConditionalDomainAdversarialLoss
-from DA.dan import ConditionalDomainAdversarialLoss
+# from DA.dan import ConditionalDomainAdversarialLoss
+from DA.cdan import ConditionalDomainAdversarialLoss
 
 from utilities import ramps
 from utilities.Logger import create_logger
@@ -487,14 +488,14 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             optimizer_crnn.zero_grad()
             optimizer_d.zero_grad()
             
-            syn_strong_pred_g = syn_strong_pred.reshape(cfg.batch_size, -1)
-            strong_pred_g = strong_pred.reshape(cfg.batch_size, -1)
+            # syn_g = syn_strong_pred.reshape(cfg.batch_size, -1)
+            # g = strong_pred.reshape(cfg.batch_size, -1)
 
             syn_d_input_feature = syn_d_input.reshape(cfg.batch_size, -1)
             d_input_feature = d_input.reshape(cfg.batch_size, -1)
 
-            # domain_loss = discriminator(syn_weak_pred, syn_d_input_feature, weak_pred, d_input_feature)
-            domain_loss = discriminator(syn_strong_pred_g, syn_d_input_feature, strong_pred_g, d_input_feature)
+            domain_loss = discriminator(syn_weak_pred, syn_d_input_feature, weak_pred, d_input_feature)
+            # domain_loss = discriminator(syn_strong_pred_g, syn_d_input_feature, strong_pred_g, d_input_feature)
             domain_loss.backward()
             optimizer_crnn.step()
             optimizer_d.step()
@@ -903,8 +904,8 @@ if __name__ == '__main__':
                    "nb_filters": [16,  32,  64,  128,  128, 128, 128],
                    "pooling": [[2, 2], [2, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]]}
     
-    # discriminator_kwargs = {"input_dim": 8192, "dropout": 0.5} # default 256
-    discriminator_kwargs = {"input_dim": 80128, "dropout": 0.5} # default 256
+    discriminator_kwargs = {"input_dim": 8192, "dropout": 0.5} # weak cdan
+    # discriminator_kwargs = {"input_dim": 80128, "dropout": 0.5} # default 256
     predictor_kwargs = {"nclass":len(cfg.bird_list), "attention":True, "n_RNN_cell":128}
 
     pooling_time_ratio = 4  # 2 * 2
@@ -1041,10 +1042,11 @@ if __name__ == '__main__':
         elif f_args.level == 'clip':
             discriminator = Clip_Discriminator(**discriminator_kwargs)
         domain_adv  = ConditionalDomainAdversarialLoss(discriminator, entropy_conditioning=False,
-        num_classes=6260, features_dim=256*313, randomized=True,
+        num_classes=20, features_dim=256*313, randomized=True,
         randomized_dim=8192)
     else:
         discriminator = None
+        domain_adv = None
 
     predictor = Predictor(**predictor_kwargs)
     
