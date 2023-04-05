@@ -27,8 +27,8 @@ from TestModel import _load_crnn
 from evaluation_measures import get_predictions, psds_score, compute_psds_from_operating_points, compute_metrics, get_f_measure_by_class
 from models.CRNN_GRL import CRNN_fpn, CRNN, Predictor, Frame_Discriminator, Clip_Discriminator
 # from DA.cdan import ConditionalDomainAdversarialLoss
-# from DA.dan import ConditionalDomainAdversarialLoss
-from DA.cdan import ConditionalDomainAdversarialLoss
+from DA.dan import ConditionalDomainAdversarialLoss
+# from DA.cdan import ConditionalDomainAdversarialLoss
 
 from utilities import ramps
 from utilities.Logger import create_logger
@@ -882,7 +882,7 @@ if __name__ == '__main__':
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 0
+    start_epoch = 1
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -904,8 +904,8 @@ if __name__ == '__main__':
                    "nb_filters": [16,  32,  64,  128,  128, 128, 128],
                    "pooling": [[2, 2], [2, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]]}
     
-    discriminator_kwargs = {"input_dim": 8192, "dropout": 0.5} # weak cdan
-    # discriminator_kwargs = {"input_dim": 80128, "dropout": 0.5} # default 256
+    # discriminator_kwargs = {"input_dim": 8192, "dropout": 0.5} # weak cdan
+    discriminator_kwargs = {"input_dim": 80128, "dropout": 0.5} # basic dan
     predictor_kwargs = {"nclass":len(cfg.bird_list), "attention":True, "n_RNN_cell":128}
 
     pooling_time_ratio = 4  # 2 * 2

@@ -177,12 +177,12 @@ if __name__ == '__main__':
     f_args = parser.parse_args()
     # Get variables from f_args
     # median_window, use_fpn, use_predictor = get_variables(f_args)
-    test_model_name = "CRNN_fpn_3000_dan_independent_default_lr"
+    test_model_name = "CRNN_fpn_3000_scmt_stage2"
 
     median_window = f_args.median_window
     use_fpn = f_args.use_fpn
     use_predictor = f_args.use_predictor
-    model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_epoch_200")
+    model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_epoch_0")
     sf = f_args.saved_feature_dir
     if sf:
         saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "embedded_features")

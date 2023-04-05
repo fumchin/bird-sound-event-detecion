@@ -96,6 +96,10 @@ class ConditionalDomainAdversarialLoss(nn.Module):
             torch.ones((g_s.size(0), 1)).to(g_s.device),
             torch.zeros((g_t.size(0), 1)).to(g_t.device),
         ))
+        # d_label = torch.cat((
+        #     torch.full((g_s.size(0), 1), 0.8).to(g_s.device),
+        #     torch.full((g_t.size(0), 1), 0.2).to(g_t.device),
+        # ))
         # weight = 1.0 + torch.exp(-entropy(g))
         batch_size = f.size(0)
         # weight = weight / torch.sum(weight) * batch_size
