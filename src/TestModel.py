@@ -189,9 +189,9 @@ if __name__ == '__main__':
     use_fpn = f_args.use_fpn
     use_predictor = f_args.use_predictor
     model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", cfg.test_model_name, "model", "baseline_best")
-    sf = f_args.sf
-    if sf:
-        saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", cfg.test_model_name, "embedded_features")
+    # sf = f_args.sf
+    # if sf:
+    #     saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", cfg.test_model_name, "embedded_features")
         
     # if f_args.groundtruth_tsv.split('/')[-1] == 'validation.tsv':
     #     data_type = 'strong'
@@ -251,13 +251,13 @@ if __name__ == '__main__':
                                             params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
                                             median_window=params["median_window"],
                                             save_predictions=f_args.save_predictions_path,
-                                            predictor=params["predictor"], fpn=True, saved_feature_dir=saved_path)
+                                            predictor=params["predictor"], fpn=True, saved_feature_dir=None)
     else:
         valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
                                             params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
                                             median_window=params["median_window"],
                                             save_predictions=f_args.save_predictions_path,
-                                            predictor=params["predictor"], saved_feature_dir=saved_path)
+                                            predictor=params["predictor"], saved_feature_dir=None)
     ct_matrix, valid_real_f1, psds_real_f1 = compute_metrics(valid_predictions, validation_labels_df, durations_validation)
     
     ct_matrix_df = pd.DataFrame(ct_matrix, columns=(sorted(cfg.bird_list) + ["World"]), index=(sorted(cfg.bird_list) + ["World"]))

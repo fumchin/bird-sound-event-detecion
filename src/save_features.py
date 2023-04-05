@@ -177,12 +177,12 @@ if __name__ == '__main__':
     f_args = parser.parse_args()
     # Get variables from f_args
     # median_window, use_fpn, use_predictor = get_variables(f_args)
-    test_model_name = "only_ada_no_prediction"
+    test_model_name = "CRNN_fpn_3000_scmt_stage2"
 
     median_window = f_args.median_window
     use_fpn = f_args.use_fpn
     use_predictor = f_args.use_predictor
-    model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_best")
+    model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_epoch_0")
     sf = f_args.saved_feature_dir
     if sf:
         saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "embedded_features")
@@ -258,11 +258,11 @@ if __name__ == '__main__':
                                             save_predictions=f_args.save_predictions_path,
                                             predictor=params["predictor"], fpn=True, saved_feature_dir = syn_saved_feature_dir)
         
-        valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
-                                            params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
-                                            median_window=params["median_window"],
-                                            save_predictions=f_args.save_predictions_path,
-                                            predictor=params["predictor"], fpn=True, saved_feature_dir=val_saved_feature_dir)
+        # valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
+        #                                     params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
+        #                                     median_window=params["median_window"],
+        #                                     save_predictions=f_args.save_predictions_path,
+        #                                     predictor=params["predictor"], fpn=True, saved_feature_dir=val_saved_feature_dir)
     else:
         train_predictions, train_labels_df, train_durations_validation = get_predictions(params["model"], train_dataloader,
                                             params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
@@ -276,10 +276,10 @@ if __name__ == '__main__':
                                             save_predictions=f_args.save_predictions_path,
                                             predictor=params["predictor"], fpn=True, saved_feature_dir = syn_saved_feature_dir)
         
-        valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
-                                            params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
-                                            median_window=params["median_window"],
-                                            save_predictions=f_args.save_predictions_path,
-                                            predictor=params["predictor"], fpn=True, saved_feature_dir=val_saved_feature_dir)
-    ct_matrix, valid_real_f1, psds_real_f1 = compute_metrics(valid_predictions, validation_labels_df, durations_validation)
+        # valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
+        #                                     params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
+        #                                     median_window=params["median_window"],
+        #                                     save_predictions=f_args.save_predictions_path,
+        #                                     predictor=params["predictor"], fpn=True, saved_feature_dir=val_saved_feature_dir)
+    # ct_matrix, valid_real_f1, psds_real_f1 = compute_metrics(valid_predictions, validation_labels_df, durations_validation)
  
