@@ -37,7 +37,7 @@ if __name__ == "__main__":
     occurence_matrix = np.zeros((len(bird_dict), len(bird_dict)))
     for file_count, annotation_file in enumerate(annotation_list):
         current_df = pd.read_csv(annotation_file, sep="\t")
-        current_bird_list =  list(current_df["Species"])
+        current_bird_list =  list(current_df["event_label"])
         add_occurence(occurence_matrix, current_bird_list, bird_dict)
     occurence_matrix = occurence_matrix/occurence_matrix.sum(axis=1)[:,None]
     occurence_df = pd.DataFrame(occurence_matrix, columns=sorted(bird_list), index=sorted(bird_list))
@@ -47,20 +47,20 @@ if __name__ == "__main__":
     #     for val in row:
     #         print ('{:4}'.format(val), end=" ")
     #     print()
-    # print(species_list)
+    # print(event_label_list)
 
     # =========================================================================================
-    # average time of each species
+    # average time of each event_label
     # =========================================================================================
     bird_time_dict = build_bird_time_dict(bird_list)
     for file_count, annotation_file in enumerate(annotation_list):
         current_df = pd.read_csv(annotation_file, sep="\t")
-        current_bird_set =  set(list(current_df["Species"]))
+        current_bird_set =  set(list(current_df["event_label"]))
         for bird in current_bird_set:
-            extract_df = current_df[current_df["Species"] == bird]
+            extract_df = current_df[current_df["event_label"] == bird]
             # print(extract_df)
             for index, row in extract_df.iterrows():
-                duration = row["End Time (s)"] - row["Begin Time (s)"]
+                duration = row["offset"] - row["onset"]
                 bird_time_dict[bird].append(duration)
 
     time_analysis_df = pd.DataFrame(columns=["Name", "Average", "Deviation", "Max", "Min"])

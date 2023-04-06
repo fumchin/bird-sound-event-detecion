@@ -680,7 +680,7 @@ if __name__ == '__main__':
     scaler_args = []
     scaler = Scaler()
     # # Only on real data since that's our final goal and test data are real
-    if cfg.syn_or_not == True:
+    if cfg.only_syn == True:
         scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
     else:
         scaler.calculate_scaler(train_scaler_dataset) 
@@ -702,11 +702,11 @@ if __name__ == '__main__':
     
     
 
-    if meanteacher == False:
-        train_dataset = torch.utils.data.ConcatDataset([train_dataset, syn_dataset])
-        # train_dataset = torch.utils.data.TensorDataset(train_dataset, syn_dataset)
-    else:
-        train_dataset = train_dataset
+    # if meanteacher == False:
+    #     train_dataset = torch.utils.data.ConcatDataset([train_dataset, syn_dataset])
+    #     # train_dataset = torch.utils.data.TensorDataset(train_dataset, syn_dataset)
+    # else:
+    train_dataset = train_dataset
     
     
     

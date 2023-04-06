@@ -35,9 +35,9 @@ if __name__ == "__main__":
 
             audio, sr = librosa.load(current_audio_files_path, sr=cfg.sr)
             for index, row in annotation_df.iterrows():
-                onset_index = int(row['Begin Time (s)'] * sr)
-                offset_index = int(row['End Time (s)'] * sr)
-                bird_name = row['Species']
+                onset_index = int(row['onset'] * sr)
+                offset_index = int(row['offset'] * sr)
+                bird_name = row['event_label']
 
                 current_audio = audio[onset_index:offset_index]
                 saved_path = os.path.join(review_saved_path, bird_name)

@@ -882,7 +882,7 @@ if __name__ == '__main__':
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 1
+    start_epoch = 0
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -989,6 +989,7 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
     syn_dataloader = DataLoader(syn_dataset, batch_size=cfg.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
+    syn_dataloader = train_dataloader
     # weak_data = DataLoadDf(dfs["weak"], encod_func, transforms, in_memory=cfg.in_memory)
     # unlabel_data = DataLoadDf(dfs["unlabel"], encod_func, transforms, in_memory=cfg.in_memory_unlab)
     # train_synth_data = DataLoadDf(dfs["train_synthetic"], encod_func, transforms, in_memory=cfg.in_memory)

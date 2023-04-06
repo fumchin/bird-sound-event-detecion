@@ -75,9 +75,9 @@ class ENA_Dataset(Dataset):
         if type(label_df) is pd.DataFrame:
             # if {"onset", "offset", "event_label"}.issubset(label_df.columns):
             for _, row in label_df.iterrows():
-                i = self.labels.index(row["Species"])
-                onset = int(row["Begin Time (s)"] * self.sample_rate // self.hop_size // self.pooling_time_ratio)
-                offset = int(row["End Time (s)"] * self.sample_rate // self.hop_size // self.pooling_time_ratio)
+                i = self.labels.index(row["event_label"])
+                onset = int(row["onset"] * self.sample_rate // self.hop_size // self.pooling_time_ratio)
+                offset = int(row["offset"] * self.sample_rate // self.hop_size // self.pooling_time_ratio)
                 y[onset:offset, i] = 1  # means offset not included (hypothesis of overlapping frames, so ok)
         return y
     
@@ -112,7 +112,7 @@ class SYN_Dataset(Dataset):
         df = pd.read_csv(annotation_file_path, sep="\t")
         # target = self.encode(df)
         df.rename(
-            columns={"onset": "Begin Time (s)", "offset": "End Time (s)", "event_label": "Species"},
+            columns={"onset": "onset", "offset": "offset", "event_label": "event_label"},
             inplace=True,
         )
         if self.encod_func is not None:

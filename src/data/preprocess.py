@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import random
 import shutil
+from scipy.sparse.csgraph import connected_components
 
 
 import config as cfg
@@ -47,54 +48,71 @@ def overlap(df, time):
     if(len(df.index) == 0):
         return df
     
-    df_overlap = df.loc[(df["Begin Time (s)"] < time) & (df["End Time (s)"] > time)]
-    df_non_overlap = df.loc[~((df["Begin Time (s)"] < time) & (df["End Time (s)"] > time))]
+    df_overlap = df.loc[(df["onset"] < time) & (df["offset"] > time)]
+    df_non_overlap = df.loc[~((df["onset"] < time) & (df["offset"] > time))]
     
     df_overlap = pd.concat([df_overlap]*2, ignore_index=True)
-    df_overlap = df_overlap.sort_values(by=['Species'])
+    df_overlap = df_overlap.sort_values(by=['event_label', 'onset', 'offset'])
     
     for i in range(len(df_overlap.index)):
         if (i % 2) == 0:
-            df_overlap.loc[i, "End Time (s)"] = time - 10**(-6)
+            df_overlap.loc[i, "offset"] = time - 10**(-6)
         else:
-            df_overlap.loc[i , "Begin Time (s)"] = time
+            df_overlap.loc[i , "onset"] = time
     
     df_result = pd.concat([df_non_overlap, df_overlap], axis=0, ignore_index=True)
     
     return df_result
 
-def same_species_overlap(df):
+def same_event_label_overlap(df):
     if(len(df.index) == 0):
         return df
-    df = df.sort_values(by=['Species', 'Begin Time (s)'])
-    result_df = None
-    species_list = df["Species"].unique()
-    for count, current_species in enumerate(species_list):
-        current_df = df.loc[df['Species'] == current_species]
-        current_df["group"]=(current_df["Begin Time (s)"]>current_df["End Time (s)"].shift().cummax()).cumsum()
-        current_result=current_df.groupby("group").agg({"Begin Time (s)":"min", "End Time (s)": "max"}).reset_index()
-        current_result["Species"] = current_species
-        current_result = current_result.drop("group", axis=1)
-        if count == 0:
-            result_df = current_result
-        else:
-            result_df = pd.concat([result_df, current_result], axis=0, ignore_index=True)
+    # df = df.sort_values(by=['event_label', 'onset'])
+    # result_df = None
+    # event_label_list = df["event_label"].unique()
+    # for count, current_event_label in enumerate(event_label_list):
+    #     current_df = df.loc[df['event_label'] == current_event_label]
+    #     current_df["group"]=(current_df["onset"]>current_df["offset"].shift().cummax()).cumsum()
+    #     current_result=current_df.groupby("group").agg({"onset":"min", "offset": "max"}).reset_index()
+    #     current_result["event_label"] = current_event_label
+    #     current_result = current_result.drop("group", axis=1)
+    #     if count == 0:
+    #         result_df = current_result
+    #     else:
+    #         result_df = pd.concat([result_df, current_result], axis=0, ignore_index=True)
     
+    # return result_df
+    result_df = None
+    event_label_list = df["event_label"].unique()
+    start = 'onset'
+    end = 'offset'
+    event_label = 'event_label'
+    # for count, current_event_label in enumerate(event_label_list):
+    start = df[start].values
+    end = df[end].values
+    event_label_id = df[event_label].values
+    graph = (start <= end[:, None]) & (end >= start[:, None]) & (event_label_id == event_label_id[:, None])
+    n_components, indices = connected_components(graph, directed=False)
+    # if count == 0:
+    result_df = df.groupby(indices).aggregate({'event_label': 'first', 'onset': 'min','offset': 'max'})
+    # else:
+    #     temp_df = df.groupby(indices).aggregate({'event_label': 'first', 'onset': 'min','offset': 'max'})
+    #     result_df = pd.concat([result_df, temp_df], axis=0, ignore_index=True)
     return result_df
     pass
 
 def over(df):
     result_df = None
-    species_list = df["Species"].unique()
-    for count, current_species in enumerate(species_list):
-        current_df = df.loc[df['Species'] == current_species]
-        current_df = current_df.sort_values(by=['Begin Time (s)'])
+    event_label_list = df["event_label"].unique()
+    for count, current_event_label in enumerate(event_label_list):
+        current_df = df.loc[df['event_label'] == current_event_label]
+        current_df = current_df.sort_values(by=['onset'])
         current_df = current_df.reset_index(drop=True)
         # current_df
-        min = current_df.loc[0, "Begin Time (s)"]
-        max = current_df.loc[0, "End Time (s)"]
+        min = current_df.loc[0, "onset"]
+        max = current_df.loc[0, "offset"]
         for i in range(len(current_df.index)-1,0, -1):
-            if (current_df.loc[i, "Begin Time (s)"] > min and current_df.loc[i, "End Time (s)"]<max):
+            if (current_df.loc[i, "onset"] > min and current_df.loc[i, "offset"]<max):
                 current_df = current_df.drop([i])
         if count == 0:
                 result_df = current_df
@@ -136,13 +154,15 @@ def ena_data_preprocess(dataset_root):
             annotation_df = pd.read_csv(current_annotation_file_path, sep="\t")
             
             # eliminate the bird not in the bird list
-            annotation_df = annotation_df[annotation_df["Species"].isin(cfg.bird_list)]
+            annotation_df.rename(columns = {'Begin Time (s)':'onset', 'End Time (s)':'offset', 'Species':'event_label'}, inplace = True)
+            annotation_df = annotation_df[annotation_df["event_label"].isin(cfg.bird_list)]
             
             # cut audio data every 10 sec, puting into list
             audio_seg_list = librosa.util.frame(audio, frame_length=cfg.seg_sec*sr, hop_length=cfg.seg_sec*sr, axis=0)
             
             
-            df_current = annotation_df[["Begin Time (s)", "End Time (s)", "Species"]]
+
+            df_current = annotation_df[["onset", "offset", "event_label"]]
             for count, audio_seg in enumerate(audio_seg_list):
                 # 10 sec every time
                 # mel spectrogram
@@ -154,20 +174,20 @@ def ena_data_preprocess(dataset_root):
                 
                 # cases that cross the segment
                 df_current = overlap(df = df_current, time = current_time_max)
-                # df_overlap = df_current.loc[(df_current["Begin Time (s)"] < current_time_max) & (df_current["End Time (s)"] > current_time_max)]
+                # df_overlap = df_current.loc[(df_current["onset"] < current_time_max) & (df_current["offset"] > current_time_max)]
                 
                 
-                df_current_filter = df_current.loc[(df_current["Begin Time (s)"] >= current_time_min) & (df_current["End Time (s)"] < current_time_max)]
-                df_current_filter["Begin Time (s)"] = df_current_filter["Begin Time (s)"] - current_time_min
-                df_current_filter["End Time (s)"] = df_current_filter["End Time (s)"] - current_time_min
+                df_current_filter = df_current.loc[(df_current["onset"] >= current_time_min) & (df_current["offset"] < current_time_max)]
+                df_current_filter["onset"] = df_current_filter["onset"] - current_time_min
+                df_current_filter["offset"] = df_current_filter["offset"] - current_time_min
                 
-                
-                # same species but overlap
-                df_current_filter_2 = same_species_overlap(df = df_current_filter)
-                df_current_filter_2 = over(df = df_current_filter_2)
-                # df_current_filter = df_current_filter.sort_values(by=['Begin Time (s)'])
+                # df_current_filter_2 = df_current_filter
+                # same event_label but overlap
+                df_current_filter_2 = same_event_label_overlap(df = df_current_filter)
+                # df_current_filter_2 = over(df = df_current_filter_2)
+                # df_current_filter = df_current_filter.sort_values(by=['onset'])
                 if df_current_filter_2 is None:
-                    df_current_filter_2 = pd.DataFrame(columns=["Begin Time (s)", "End Time (s)", "Species"])
+                    df_current_filter_2 = pd.DataFrame(columns=["onset", "offset", "event_label"])
                 df_current_filter_2 = df_current_filter_2.drop_duplicates()
                 # save mel spectrogram
                 np.save(os.path.join(mel_saved_path, wav_name + "_" + str(count)), mel)

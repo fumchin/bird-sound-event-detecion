@@ -53,9 +53,9 @@ batch_size = 12
 # model_name = "only_fix_detach_ada_no_prediction_"
 # model_name = "CRNN_fpn_scmt_test"
 
-model_name = 'CRNN_fpn_3000_scmt_smooth_stage2'
-test_model_name = "CRNN_fpn"
-only_syn = False
+model_name = 'CRNN_fpn_0406_only_syn'
+test_model_name = "CRNN_fpn_adlr"
+only_syn = True
 n_epoch = 300 #, variance after 100 may be too large
 n_epoch_rampup = 50
 n_epoch_rampdown = 80
