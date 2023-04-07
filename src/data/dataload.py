@@ -81,6 +81,49 @@ class ENA_Dataset(Dataset):
                 y[onset:offset, i] = 1  # means offset not included (hypothesis of overlapping frames, so ok)
         return y
     
+class ENA_Dataset_weak(Dataset):
+    def __init__(self, preprocess_dir, encod_func, transform, compute_log=False):
+        self.sample_rate = cfg.sr
+        self.preprocess_dir = preprocess_dir
+        # self.encode_function = encode_function
+        self.pooling_time_ratio = cfg.pooling_time_ratio
+        self.n_frames = cfg.max_frames // self.pooling_time_ratio
+        self.hop_size = cfg.hop_size
+        self.transform = transform
+        self.encod_func = encod_func
+        
+        self.annotation_dir = "/home/fumchin/data/bsed_20/src/unlabel_in_domain_pseudo_weak.tsv"
+        self.feature_dir = os.path.join(self.preprocess_dir, "wav")
+        self.feature_file_list = glob(os.path.join(self.feature_dir, "*.npy"))
+        self.labels = cfg.bird_list
+        
+    def __len__(self):
+        return len(self.feature_file_list)
+        
+    def __getitem__(self, index):
+        # get selected file
+        selected_file_path = self.feature_file_list[index]
+        features = np.load(selected_file_path)
+        
+        # get its annotation
+        # feature_file_name = os.path.splitext(os.path.basename(selected_file_path))[0]
+        annotation_file_path = self.annotation_dir
+        # read with pandas
+        df = pd.read_csv(annotation_file_path, sep="\t")
+        df_extracted = df[df['filename'] == selected_file_path]
+        df_extracted = df_extracted["event_labels"]
+        # target = self.encode(df)
+        if self.encod_func is not None:
+            target = self.encod_func(df)
+        else:
+            target = self.encode(df)
+            print("no encoded function")
+
+        if self.transform is not None:
+            sample = self.transform((features, target))
+        else:
+            sample = (features, target)
+        return (sample, selected_file_path)
 class SYN_Dataset(Dataset):
     def __init__(self, preprocess_dir, encod_func, transform, compute_log=False):
         self.sample_rate = cfg.sr

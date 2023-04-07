@@ -53,7 +53,7 @@ batch_size = 12
 # model_name = "only_fix_detach_ada_no_prediction_"
 # model_name = "CRNN_fpn_scmt_test"
 
-model_name = 'CRNN_fpn_0406_only_syn'
+model_name = 'CRNN_fpn_0407_pl_scmt'
 test_model_name = "CRNN_fpn_adlr"
 only_syn = True
 n_epoch = 300 #, variance after 100 may be too large
@@ -70,7 +70,7 @@ checkpoint_epochs = 1
 save_best = True
 early_stopping = None # 20
 es_init_wait = 50  # es for early stopping
-adjust_lr = True
+adjust_lr = False
 max_learning_rate = 0.001 #0.001  # Used if adjust_lr is True
 default_learning_rate = 0.001#0.001  # Used if adjust_lr is False
 max_consistency_cost = 0.1
