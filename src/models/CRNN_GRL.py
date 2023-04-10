@@ -215,6 +215,8 @@ class CRNN_fpn(nn.Module):
         # self.upsample_4 = nn.Upsample((78,1), mode='bilinear', align_corners=True)
         self.upsample_2 = nn.Upsample((313,1), mode='bilinear', align_corners=True)
         self.upsample_4 = nn.Upsample((156,1), mode='bilinear', align_corners=True)
+        # self.upsample_2 = nn.Upsample((627,1), mode='bilinear', align_corners=True)
+        # self.upsample_4 = nn.Upsample((313,1), mode='bilinear', align_corners=True)
         self.conv1x1_2 = nn.Conv2d(512,256,1) # for x_2
         self.conv1x1_4 = nn.Conv2d(512,256,1) # for x
 
@@ -298,6 +300,7 @@ class Predictor(nn.Module):
             check = (weak > 0.5).type(torch.FloatTensor).cuda()
             # check = check.unsqueeze(1).repeat(1,157,1)
             check = check.unsqueeze(1).repeat(1,313,1)
+            # check = check.unsqueeze(1).repeat(1,627,1)
             strong = strong * check
         
         

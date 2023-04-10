@@ -38,7 +38,7 @@ pooling_time_ratio = 4
 
 noise_snr = 30
 median_window_s = 0.45
-out_nb_frames_1s = sr / hop_size / 4 # 4 for pooling_time_ratio
+out_nb_frames_1s = sr / hop_size / pooling_time_ratio # 4 for pooling_time_ratio
 median_window_s_classwise = [0.45, 0.45, 0.45, 0.45, 0.45, 2.7, 2.7, 2.7, 0.45, 2.7] # [0.3, 0.9, 0.9, 0.3, 0.3, 2.7, 2.7, 2.7, 0.9, 2.7] 
 median_window = [max(int(item * out_nb_frames_1s), 1) for item in median_window_s_classwise]
 # max_frames = math.ceil(max_len_seconds * sample_rate / hop_size)
@@ -53,7 +53,7 @@ batch_size = 12
 # model_name = "only_fix_detach_ada_no_prediction_"
 # model_name = "CRNN_fpn_scmt_test"
 
-model_name = 'CRNN_fpn_0407_pl_scmt'
+model_name = 'CRNN_fpn_3000_0410_scmt_pl'
 test_model_name = "CRNN_fpn_adlr"
 only_syn = True
 n_epoch = 300 #, variance after 100 may be too large
@@ -70,7 +70,7 @@ checkpoint_epochs = 1
 save_best = True
 early_stopping = None # 20
 es_init_wait = 50  # es for early stopping
-adjust_lr = False
+adjust_lr = True
 max_learning_rate = 0.001 #0.001  # Used if adjust_lr is True
 default_learning_rate = 0.001#0.001  # Used if adjust_lr is False
 max_consistency_cost = 0.1

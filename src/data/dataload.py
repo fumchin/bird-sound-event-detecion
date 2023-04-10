@@ -114,9 +114,9 @@ class ENA_Dataset_weak(Dataset):
         df_extracted = df_extracted["event_labels"]
         # target = self.encode(df)
         if self.encod_func is not None:
-            target = self.encod_func(df)
+            target = self.encod_func(df_extracted)
         else:
-            target = self.encode(df)
+            target = self.encode(df_extracted)
             print("no encoded function")
 
         if self.transform is not None:

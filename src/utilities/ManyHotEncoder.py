@@ -46,9 +46,11 @@ class ManyHotEncoder:
                 labels = labels["event_label"]
         y = np.zeros(len(self.labels))
         for label in labels:
-            if not pd.isna(label):
-                i = self.labels.index(label)
-                y[i] = 1
+            event_list = label.split(",")
+            for event in event_list:
+                if not pd.isna(event):
+                    i = self.labels.index(event)
+                    y[i] = 1
         return y
 
     def encode_strong_df(self, label_df):

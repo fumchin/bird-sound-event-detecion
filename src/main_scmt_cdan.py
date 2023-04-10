@@ -405,25 +405,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             syn_encoded_x_freq_shift, _ = model(syn_batch_input_freq_shift)
             syn_strong_freq_shift_pred, syn_weak_freq_shift_pred = predictor(syn_encoded_x_freq_shift)
 
-            # encoded_x_input_shift_ema, _ = model(ema_batch_input_shift)
-            # strong_shift_pred_ema, weak_shift_pred_ema = predictor(encoded_x_input_shift_ema)
-
-            # encoded_x_input_freq_shift_ema, _ = model(ema_batch_input_freq_shift)
-            # strong_freq_shift_pred_ema, weak_freq_shift_pred_ema = predictor(encoded_x_input_freq_shift_ema)
-
-            # encoded_x_shift, _ = model(batch_input_shift)
-            # strong_shift_pred, weak_shift_pred = predictor(encoded_x_shift)
-            # encoded_x_freq_shift, _ = model(batch_input_freq_shift)
-            # strong_freq_shift_pred, weak_freq_shift_pred = predictor(encoded_x_freq_shift)
-
-            # Setting for ICT
-            # mask_unlabel = slice(6,18)
-            # mixup_sup_alpha = 1.0
-            # mixup_usup_alpha = 2.0
-            # mixup_consistency = 1.0
-            # consistency_rampup_starts = 0.0
-            # consistency_rampup_ends = 100.0 
-        # mask_unlabel = slice(6,18)
+            
         loss = None
         # Weak BCE Loss
         syn_target_weak = syn_target.max(-2)[0]  # Take the max in the time axis
@@ -451,6 +433,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             # weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_strong]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_strong]), 0))
             weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
 
+        # PSEUDO LABELING
         if ema_model is not None:
             weak_class_loss = weak_class_loss + class_criterion(weak_pred, target_weak)
 
@@ -740,6 +723,7 @@ if __name__ == '__main__':
 
     out_nb_frames_1s = cfg.sr / cfg.hop_size / pooling_time_ratio
     median_window = max(int(cfg.median_window_s * out_nb_frames_1s), 1)
+    # median_window = 10
     # logger.debug(f"median_window: {median_window}")
     # ##############
     # DATA
@@ -769,18 +753,18 @@ if __name__ == '__main__':
         # scaler.calculate_scaler(train_scaler_dataset) 
         scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
 
-    transforms_real = get_transforms(cfg.max_frames, scaler, add_axis_conv,
+    transforms_real = get_transforms(cfg.max_frames, None, add_axis_conv,
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    transforms_syn = get_transforms(cfg.max_frames, scaler, add_axis_conv,
+    transforms_syn = get_transforms(cfg.max_frames, None, add_axis_conv,
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     
 
-    train_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=weak_encod_func, transform=transforms_real, compute_log=True)
+    train_dataset = ENA_Dataset_weak(preprocess_dir=cfg.train_feature_dir, encod_func=weak_encod_func, transform=transforms_real, compute_log=True)
     syn_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_syn, compute_log=True)
 
     scaler_val = Scaler()
     scaler_val.calculate_scaler(val_scaler_dataset) 
-    transforms_valid = get_transforms(cfg.max_frames, scaler_val, add_axis_conv,
+    transforms_valid = get_transforms(cfg.max_frames, None, add_axis_conv,
                                       noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_valid, compute_log=True)
     
