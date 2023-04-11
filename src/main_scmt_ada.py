@@ -434,8 +434,8 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
 
         # PSEUDO LABELING
-        if ema_model is not None:
-            weak_class_loss = weak_class_loss + class_criterion(weak_pred, target_weak)
+        # if ema_model is not None:
+        #     weak_class_loss = weak_class_loss + class_criterion(weak_pred, target_weak)
 
         if i == 0:
             log.debug(f"target: {syn_target.mean(-2)} \n Target_weak: {syn_target_weak} \n "
@@ -693,7 +693,7 @@ if __name__ == '__main__':
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 0
+    start_epoch = 1
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
