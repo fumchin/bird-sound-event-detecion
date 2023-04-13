@@ -81,7 +81,7 @@ class ENA_Dataset(Dataset):
                 y[onset:offset, i] = 1  # means offset not included (hypothesis of overlapping frames, so ok)
         return y
     
-class ENA_Dataset_weak(Dataset):
+class ENA_Dataset_unlabeled(Dataset):
     def __init__(self, preprocess_dir, encod_func, transform, compute_log=False):
         self.sample_rate = cfg.sr
         self.preprocess_dir = preprocess_dir
@@ -265,7 +265,7 @@ if __name__ == "__main__":
     # many_hot_encoder = ManyHotEncoder(cfg.classes, n_frames=cfg.max_frames // cfg.pooling_time_ratio)
     # encod_func = many_hot_encoder.encode_strong_df
     ENA = ENA_Dataset(preprocess_dir=cfg.feature_dir, encod_func=None, transform=None, compute_log=False)
-    train_dataloader = DataLoader(ENA, batch_size=6, shuffle=True)
-    a, b = next(iter(train_dataloader))
+    real_dataloader = DataLoader(ENA, batch_size=6, shuffle=True)
+    a, b = next(iter(real_dataloader))
     print(a, b)
     print('f')

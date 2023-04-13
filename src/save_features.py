@@ -206,7 +206,7 @@ if __name__ == '__main__':
     scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
     transforms = get_transforms(cfg.max_frames, scaler, add_axis_conv,
                                       noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    train_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
+    real_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
     syn_dataset = ENA_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
     
     
@@ -225,9 +225,9 @@ if __name__ == '__main__':
     # train_data, val_data = train_test_split(dataset, random_state=cfg.dataset_random_seed, train_size=0.5)
     
     val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
-    train_dataloader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=False)
+    real_dataloader = DataLoader(real_dataset, batch_size=cfg.batch_size, shuffle=False)
     syn_dataloader = DataLoader(syn_dataset, batch_size=cfg.batch_size, shuffle=False)
-    # train_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
+    # real_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
     # gt_df_feat = dataset.initialize_and_get_df(f_args.groundtruth_tsv, gt_audio_dir, nb_files=f_args.nb_files)
     params = _load_state_vars(expe_state, median_window, use_fpn, use_predictor)
 
@@ -246,7 +246,7 @@ if __name__ == '__main__':
         os.makedirs(val_saved_feature_dir)
 
     if use_fpn:
-        train_predictions, train_labels_df, train_durations_validation = get_predictions(params["model"], train_dataloader,
+        train_predictions, train_labels_df, train_durations_validation = get_predictions(params["model"], real_dataloader,
                                             params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
                                             median_window=params["median_window"],
                                             save_predictions=f_args.save_predictions_path,
@@ -264,7 +264,7 @@ if __name__ == '__main__':
         #                                     save_predictions=f_args.save_predictions_path,
         #                                     predictor=params["predictor"], fpn=True, saved_feature_dir=val_saved_feature_dir)
     else:
-        train_predictions, train_labels_df, train_durations_validation = get_predictions(params["model"], train_dataloader,
+        train_predictions, train_labels_df, train_durations_validation = get_predictions(params["model"], real_dataloader,
                                             params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
                                             median_window=params["median_window"],
                                             save_predictions=f_args.save_predictions_path,

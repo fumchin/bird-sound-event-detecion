@@ -206,13 +206,21 @@ def data_split(dataset_root):
     mel_saved_path = os.path.join(saved_path, "wav")
     annotation_saved_path = os.path.join(saved_path, "annotation")
     
-    train_saved_path = os.path.join(cfg.dataset_root, "train_preprocess")
-    train_mel_saved_path = os.path.join(train_saved_path, "wav")
-    train_annotation_saved_path = os.path.join(train_saved_path, "annotation")
+    train_unlabeled_saved_path = os.path.join(cfg.dataset_root, "train_unlabeled_preprocess")
+    train_unlabeled_mel_saved_path = os.path.join(train_unlabeled_saved_path, "wav")
+    train_unlabeled_annotation_saved_path = os.path.join(train_unlabeled_saved_path, "annotation")
 
-    if not os.path.exists(train_mel_saved_path):
-        os.makedirs(train_mel_saved_path)
-        os.makedirs(train_annotation_saved_path)
+    if not os.path.exists(train_unlabeled_saved_path):
+        os.makedirs(train_unlabeled_mel_saved_path)
+        os.makedirs(train_unlabeled_annotation_saved_path)
+    
+    train_weak_saved_path = os.path.join(cfg.dataset_root, "train_weak_preprocess")
+    train_weak_mel_saved_path = os.path.join(train_weak_saved_path, "wav")
+    train_weak_annotation_saved_path = os.path.join(train_weak_saved_path, "annotation")
+
+    if not os.path.exists(train_weak_saved_path):
+        os.makedirs(train_weak_mel_saved_path)
+        os.makedirs(train_weak_annotation_saved_path)
 
     val_saved_path = os.path.join(cfg.dataset_root, "val_preprocess")
     val_mel_saved_path = os.path.join(val_saved_path, "wav")
@@ -227,14 +235,23 @@ def data_split(dataset_root):
     
     train_mel_set =  set(random.sample(set(total_mel_file_list), int(len(total_mel_file_list)/2)))
     val_mel_set = set(total_mel_file_list) - train_mel_set
+
+    train_unlabel_mel_set = set(random.sample(set(train_mel_set), int(len(train_mel_set)/2)))
+    train_weak_mel_set = set(train_mel_set) - train_unlabel_mel_set
     
     # print(len(train_mel_set))
-    for mel_file_path in train_mel_set:
+    for mel_file_path in train_unlabel_mel_set:
         file_name = os.path.splitext(os.path.basename(mel_file_path))[0]
         annotation_file_path = glob(os.path.join(annotation_saved_path, file_name + ".txt"))[0]
-        shutil.copy(mel_file_path, train_mel_saved_path)
-        shutil.copy(annotation_file_path, train_annotation_saved_path)
+        shutil.copy(mel_file_path, train_unlabeled_mel_saved_path)
+        shutil.copy(annotation_file_path, train_unlabeled_annotation_saved_path)
         # print(annotation_file_path)
+    
+    for mel_file_path in train_weak_mel_set:
+        file_name = os.path.splitext(os.path.basename(mel_file_path))[0]
+        annotation_file_path = glob(os.path.join(annotation_saved_path, file_name + ".txt"))[0]
+        shutil.copy(mel_file_path, train_weak_mel_saved_path)
+        shutil.copy(annotation_file_path, train_weak_annotation_saved_path)
 
     for mel_file_path in val_mel_set:
         file_name = os.path.splitext(os.path.basename(mel_file_path))[0]
@@ -244,6 +261,6 @@ def data_split(dataset_root):
 
 if __name__ == '__main__':
     dataset_root = cfg.dataset_root
-    ena_data_preprocess(cfg.dataset_root)
+    # ena_data_preprocess(cfg.dataset_root)
     data_split(cfg.dataset_root)
     # syn_data_preprocess()

@@ -15,7 +15,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch import nn
 
-from data.dataload import ENA_Dataset, SYN_Dataset, ENA_Dataset_weak, ConcatDataset
+from data.dataload import ENA_Dataset, SYN_Dataset, ENA_Dataset_unlabeled, ConcatDataset
 from data.Transforms import get_transforms
 import data.config as cfg
 from sklearn.model_selection import train_test_split
@@ -163,7 +163,7 @@ def mixup_data(x, y, z, alpha=1.0):
 
 
 
-def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None, ema_predictor=None, mask_weak=None, mask_strong=None, adjust_lr=False, discriminator=None, optimizer_d=None, predictor=None, optimizer_crnn=None, ISP=False):
+def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optimizer, c_epoch, ema_model=None, ema_predictor=None, mask_weak=None, mask_strong=None, adjust_lr=False, discriminator=None, optimizer_d=None, predictor=None, optimizer_crnn=None, ISP=False):
     """ One epoch of a Mean Teacher model
     Args:
         train_loader: torch.utils.data.DataLoader, iterator of training batches for an epoch.
@@ -184,24 +184,46 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
     domain_acc = []
     # ema_model = None
     meters = AverageMeterSet()
-    log.debug("Nb batches: {}".format(len(train_loader)))
+    log.debug("Nb batches: {}".format(len(train_unlabeled_loader)))
     start = time.time()
     # for i, (xb1, xb2) in enumerate(zip(train_loader, cycle(syn_loader))):
     # for epoch in range(num_epochs):
-    dataloader_iterator = iter(syn_loader)
+    # dataloader_iterator = iter(syn_loader)
+    unlabeled_dataloader_iterator = iter(train_unlabeled_loader)
+    weak_dataloader_iterator = iter(train_weak_loader)
     
-    for i, data1 in enumerate(train_loader):
+    for i, data_syn in enumerate(syn_loader):
 
         try:
-            data2 = next(dataloader_iterator)
+            data_unlabeled = next(unlabeled_dataloader_iterator)
         except StopIteration:
-            dataloader_iterator = iter(syn_loader)
-            data2 = next(dataloader_iterator)
+            unlabeled_dataloader_iterator = iter(train_unlabeled_loader)
+            data_unlabeled = next(unlabeled_dataloader_iterator)
+        
+        try:
+            data_weak = next(weak_dataloader_iterator)
+        except StopIteration:
+            weak_dataloader_iterator = iter(train_weak_loader)
+            data_weak = next(weak_dataloader_iterator)
 
-        ((batch_input, ema_batch_input), target_weak), filename = data1
-        ((syn_batch_input, syn_ema_batch_input), syn_target), syn_filename = data2  
-        if (batch_input.shape[0] != syn_batch_input.shape[0]):
+        ((unlabeled_batch_input, unlabeled_ema_batch_input), target_pl), filename = data_unlabeled
+
+        ((weak_batch_input, weak_ema_batch_input), target), filename = data_weak
+        target_weak = target.max(-2)[0]
+
+        ((syn_batch_input, syn_ema_batch_input), syn_target), syn_filename = data_syn
+        
+
+        if (unlabeled_batch_input.shape[0] != syn_batch_input.shape[0]//2):
             continue
+        if (weak_batch_input.shape[0] != syn_batch_input.shape[0]//2):
+            continue
+
+        batch_input = torch.cat((weak_batch_input, unlabeled_batch_input), dim=0)
+        ema_batch_input = torch.cat((weak_ema_batch_input, unlabeled_ema_batch_input), dim=0)
+        target_weak = torch.cat((target_weak, target_pl), dim=0)
+
+        # concate real data
         if ISP:
             # Generate input random shift feature 
             pooling_time_ratio = 4
@@ -399,27 +421,41 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             strong_pred_shift = strong_pred_shift.detach() 
             syn_strong_pred_shift = syn_strong_pred_shift.detach() 
             # Shifted prediction
+
+            encoded_x_freq_shift, _ = model(batch_input_freq_shift)
+            strong_freq_shift_pred, weak_freq_shift_pred = predictor(encoded_x_freq_shift)
+
+            encoded_x_shift, _ = model(batch_input_shift)
+            strong_shift_pred, weak_shift_pred = predictor(encoded_x_shift)
+
             syn_encoded_x_shift, _ = model(syn_batch_input_shift)
             syn_strong_shift_pred, syn_weak_shift_pred = predictor(syn_encoded_x_shift)
-
+            
             syn_encoded_x_freq_shift, _ = model(syn_batch_input_freq_shift)
             syn_strong_freq_shift_pred, syn_weak_freq_shift_pred = predictor(syn_encoded_x_freq_shift)
 
             
         loss = None
         # Weak BCE Loss
-        syn_target_weak = syn_target.max(-2)[0]  # Take the max in the time axis
+        
         
         # if mask_weak is not None:
         # ======================================================================================================
         # FOR WEAK LABEL
         # ======================================================================================================
+        syn_target_weak = syn_target.max(-2)[0]  # Take the max in the time axis
+        weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
+        weak_index = target_weak.shape[0] // 2
+        if ema_model is not None:
+            # weak_class_loss += class_criterion(weak_pred, target_weak)
+            weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
+        else:
+            weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
         if ISP:
             # Contain weak pseudo-label
             # weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_unlabel]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_unlabel]), 0))
-            weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
             # SCT
-            weak_freq_shift_class_loss = class_criterion(syn_weak_freq_shift_pred, syn_target_weak)
+            weak_freq_shift_class_loss = class_criterion(syn_weak_freq_shift_pred, syn_target_weak) + class_criterion(weak_freq_shift_pred[:weak_index], target_weak[:weak_index]) + class_criterion(weak_shift_pred[:weak_index], target_weak[:weak_index])
             
             # ICT
             # if mixup_sup_alpha:
@@ -431,15 +467,15 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             #     meters.update('maxup_weak_class_loss', mixup_weak_class_loss.item())
         else:
             # weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_strong]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_strong]), 0))
-            weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
+            pass
 
         # PSEUDO LABELING
         # if ema_model is not None:
-        #     weak_class_loss = weak_class_loss + class_criterion(weak_pred, target_weak)
+        #     weak_class_loss = weak_class_loss + class_criterion(weak_pred, target_pl)
 
         if i == 0:
-            log.debug(f"target: {syn_target.mean(-2)} \n Target_weak: {syn_target_weak} \n "
-                        f"Target weak mask: {syn_target_weak} \n "
+            log.debug(f"target: {syn_target.mean(-2)} \n Target_weak: {target_weak} \n "
+                        f"Target weak mask: {target_weak} \n "
                         f"Target strong mask: {syn_target.sum(-2)}\n"
                         f"weak loss: {weak_class_loss} \t rampup_value: {rampup_value}"
                         f"tensor mean: {batch_input.mean()}")
@@ -465,15 +501,6 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
             strong_shift_class_loss = class_criterion(syn_strong_shift_pred, syn_strong_target_shift)
             strong_freq_shift_class_loss = class_criterion(syn_strong_freq_shift_pred, syn_target)
 
-            # ICT
-            # if mixup_sup_alpha:
-            #     mixed_input_strong, target_a_strong, target_b_strong, lam_strong = mixup_data_sup(batch_input[mask_strong], target[mask_strong], mixup_sup_alpha)
-            #     encoded_x_strong, _ = model(mixed_input_strong)
-            #     output_mixed_strong, _ = predictor(encoded_x_strong)
-            #     loss_func_strong = mixup_criterion(target_a_strong, target_b_strong, lam_strong)
-            #     mixup_strong_class_loss = loss_func_strong(class_criterion, output_mixed_strong)
-            #     meters.update('mixup_strong_class_loss', mixup_strong_class_loss.item())    
-
         # Teacher-student consistency cost
         if ema_model is not None:
             consistency_cost = cfg.max_consistency_cost * rampup_value
@@ -490,41 +517,21 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
 
             if ISP:
                 # Take consistency about shift strong predictions (all data)
-                consistency_loss_strong_shift = consistency_cost * consistency_criterion(syn_strong_shift_pred, strong_pred_shift_ema)
+                consistency_loss_strong_shift = consistency_cost * consistency_criterion(strong_shift_pred, strong_pred_shift_ema)
                 meters.update('Consistency strong shift', consistency_loss_strong_shift.item())
 
                 # Take consistency about shift weak predictions (all data)
-                consistency_loss_weak_shift = consistency_cost * consistency_criterion(syn_weak_shift_pred, weak_pred_shift_ema)
+                consistency_loss_weak_shift = consistency_cost * consistency_criterion(weak_shift_pred, weak_pred_shift_ema)
                 meters.update('Consistency weak shift', consistency_loss_weak_shift.item())
 
                 # Take consistency about shift strong predictions (all data)
-                consistency_loss_strong_freq_shift = consistency_cost * consistency_criterion(syn_strong_freq_shift_pred, strong_pred_freq_shift_ema)
+                consistency_loss_strong_freq_shift = consistency_cost * consistency_criterion(strong_freq_shift_pred, strong_pred_freq_shift_ema)
                     
                 meters.update('Consistency strong freq shift', consistency_loss_strong_freq_shift.item())
 
                 # Take consistency about shift weak predictions (all data)
-                consistency_loss_weak_freq_shift = consistency_cost * consistency_criterion(syn_weak_freq_shift_pred, weak_pred_freq_shift_ema)
-                meters.update('Consistency weak freq shift', consistency_loss_weak_freq_shift.item())
-            # if ISP:
-            #     # ICT
-            #     batch_input_u = batch_input[mask_unlabel]
-            #     encoded_x_u, _ = ema_model(batch_input_u)
-            #     ema_logit_unlabeled, ema_logit_unlabeled_weak = ema_predictor(encoded_x_u)
-            #     ema_logit_unlabeled = ema_logit_unlabeled.detach()
-            #     ema_logit_unlabeled_weak = ema_logit_unlabeled_weak.detach()
-                
-            #     if mixup_consistency:
-            #         mixedup_x, mixedup_target, mixedup_target_weak, lam = mixup_data(batch_input_u, ema_logit_unlabeled, ema_logit_unlabeled_weak, mixup_usup_alpha)
-            #         encoded_x_mixedup, _ = model(mixedup_x)
-            #         output_mixed_u, output_mixed_u_weak = predictor(encoded_x_mixedup)
-
-            #         mixup_consistency_weak_loss = consistency_criterion(output_mixed_u_weak, mixedup_target_weak)# / 12
-            #         mixup_consistency_strong_loss = consistency_criterion(output_mixed_u, mixedup_target)# / 12
-            #         meters.update('mixup_cons_weak_loss', mixup_consistency_weak_loss.item())
-            #         meters.update('mixup_cons_strong_loss', mixup_consistency_strong_loss.item())
-                    
-            #         mixup_consistency_weak_loss = consistency_cost*mixup_consistency_weak_loss     
-            #         mixup_consistency_strong_loss = consistency_cost*mixup_consistency_strong_loss        
+                consistency_loss_weak_freq_shift = consistency_cost * consistency_criterion(weak_freq_shift_pred, weak_pred_freq_shift_ema)
+                meters.update('Consistency weak freq shift', consistency_loss_weak_freq_shift.item())       
  
  
         # Calculate loss for labeled data
@@ -539,7 +546,7 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
         
         if ISP:
             # Add shift consistency loss
-            consistency_loss_shift = consistency_cost/2 * consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift)            
+            consistency_loss_shift = consistency_cost/2 * (consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift) + consistency_criterion(strong_shift_pred, strong_pred_shift))
             # loss = loss + (weak_freq_shift_class_loss + mixup_weak_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + mixup_strong_class_loss + mixup_consistency_weak_loss + mixup_consistency_strong_loss + consistency_loss_shift)
             loss = loss + (weak_freq_shift_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
             loss = loss + (consistency_loss_strong_shift + consistency_loss_weak_shift) + (consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
@@ -604,46 +611,6 @@ def train_mt(train_loader, syn_loader, model, optimizer, c_epoch, ema_model=None
     log.info(f"Epoch: {c_epoch}\t Time {epoch_time:.2f}\t {meters}")
     return loss
 
-# def get_dfs(desed_dataset, nb_files=None, separated_sources=False):
-#     log = create_logger(__name__ + "/" + inspect.currentframe().f_code.co_name, terminal_level=cfg.terminal_level)
-#     audio_weak_ss = None
-#     audio_unlabel_ss = None
-#     audio_validation_ss = None
-#     audio_synthetic_ss = None
-#     if separated_sources:
-#         audio_weak_ss = cfg.weak_ss
-#         audio_unlabel_ss = cfg.unlabel_ss
-#         audio_validation_ss = cfg.validation_ss
-#         audio_synthetic_ss = cfg.synthetic_ss
-
-#     weak_df = desed_dataset.initialize_and_get_df(cfg.weak, audio_dir_ss=audio_weak_ss, nb_files=nb_files)
-#     unlabel_df = desed_dataset.initialize_and_get_df(cfg.unlabel, audio_dir_ss=audio_unlabel_ss, nb_files=nb_files)
-#     # Event if synthetic not used for training, used on validation purpose
-#     synthetic_df = desed_dataset.initialize_and_get_df(cfg.synthetic, audio_dir_ss=audio_synthetic_ss,
-#                                                        nb_files=nb_files, download=False)
-#     log.debug(f"synthetic: {synthetic_df.head()}")
-#     validation_df = desed_dataset.initialize_and_get_df(cfg.validation, audio_dir=cfg.audio_validation_dir,
-#                                                         audio_dir_ss=audio_validation_ss, nb_files=nb_files)
-#     # Divide synthetic in train and valid
-#     filenames_train = synthetic_df.filename.drop_duplicates().sample(frac=0.8, random_state=26)
-#     train_synth_df = synthetic_df[synthetic_df.filename.isin(filenames_train)]
-#     valid_synth_df = synthetic_df.drop(train_synth_df.index).reset_index(drop=True)
-#     # Put train_synth in frames so many_hot_encoder can work.
-#     #  Not doing it for valid, because not using labels (when prediction) and event based metric expect sec.
-#     train_synth_df.onset = train_synth_df.onset * cfg.sample_rate // cfg.hop_size // pooling_time_ratio
-#     train_synth_df.offset = train_synth_df.offset * cfg.sample_rate // cfg.hop_size // pooling_time_ratio
-#     log.debug(valid_synth_df.event_label.value_counts())
-
-#     data_dfs = {"weak": weak_df,
-#                 "unlabel": unlabel_df,
-#                 "synthetic": synthetic_df,
-#                 "train_synthetic": train_synth_df,
-#                 "valid_synthetic": valid_synth_df,
-#                 "validation": validation_df,
-#                 # "eval2018": eval_2018_df
-#                 }
-
-#     return data_dfs
 
 
 if __name__ == '__main__':
@@ -693,7 +660,7 @@ if __name__ == '__main__':
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 1
+    start_epoch = 0
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -738,20 +705,21 @@ if __name__ == '__main__':
     weak_encod_func = many_hot_encoder.encode_weak
 
 
-    transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
-    train_scaler_dataset = ENA_Dataset_weak(preprocess_dir=cfg.train_feature_dir, encod_func=weak_encod_func, transform=transforms_scaler, compute_log=True)
-    val_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
-    syn_scaler_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    # transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
+    # train_scaler_dataset = ENA_Dataset_unlabeled(preprocess_dir=cfg.train_unlabeled_feature_dir, encod_func=weak_encod_func, transform=transforms_scaler, compute_log=True)
+    # val_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    # syn_scaler_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
 
 
     scaler_args = []
     scaler = Scaler()
 
-    if cfg.only_syn == True:
-        scaler.calculate_scaler(syn_scaler_dataset) 
-    else:
-        # scaler.calculate_scaler(train_scaler_dataset) 
-        scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
+    # if cfg.only_syn == True:
+    #     scaler.calculate_scaler(syn_scaler_dataset) 
+    # else:
+    #     # scaler.calculate_scaler(train_scaler_dataset) 
+    #     scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
+    
 
     transforms_real = get_transforms(cfg.max_frames, None, add_axis_conv,
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
@@ -759,11 +727,12 @@ if __name__ == '__main__':
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     
 
-    real_dataset = ENA_Dataset_weak(preprocess_dir=cfg.train_feature_dir, encod_func=weak_encod_func, transform=transforms_real, compute_log=True)
+    real_unlabeled_dataset = ENA_Dataset_unlabeled(preprocess_dir=cfg.train_unlabeled_feature_dir, encod_func=weak_encod_func, transform=transforms_real, compute_log=True)
+    real_weak_dataset = ENA_Dataset(preprocess_dir=cfg.train_weak_feature_dir, encod_func=encod_func, transform=transforms_real, compute_log=True)
     syn_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_syn, compute_log=True)
 
     scaler_val = Scaler()
-    scaler_val.calculate_scaler(val_scaler_dataset) 
+    # scaler_val.calculate_scaler(val_scaler_dataset) 
     transforms_valid = get_transforms(cfg.max_frames, None, add_axis_conv,
                                       noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_valid, compute_log=True)
@@ -779,7 +748,8 @@ if __name__ == '__main__':
     
     
     
-    real_dataloader = DataLoader(real_dataset, batch_size=cfg.batch_size, shuffle=True)
+    real_unlabeled_dataloader = DataLoader(real_unlabeled_dataset, batch_size=cfg.batch_size//2, shuffle=True)
+    real_weak_dataloader = DataLoader(real_weak_dataset, batch_size=cfg.batch_size//2, shuffle=True)
     syn_dataloader = DataLoader(syn_dataset, batch_size=cfg.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
     # syn_dataloader = real_dataloader
@@ -953,10 +923,10 @@ if __name__ == '__main__':
                     "kwargs": optim_kwargs,
                     'state_dict': optim_crnn.state_dict()},
             "pooling_time_ratio": pooling_time_ratio,
-            "scaler": {
-                "type": type(scaler).__name__,
-                "args": scaler_args,
-                "state_dict": scaler.state_dict()},
+            # "scaler": {
+            #     "type": type(scaler).__name__,
+            #     "args": scaler_args,
+            #     "state_dict": scaler.state_dict()},
             "many_hot_encoder": many_hot_encoder.state_dict(),
             "median_window": median_window,
             # "desed": dataset.state_dict()
@@ -988,10 +958,10 @@ if __name__ == '__main__':
                     "kwargs": optim_kwargs,
                     'state_dict': optim_crnn.state_dict()},
             "pooling_time_ratio": pooling_time_ratio,
-            "scaler": {
-                "type": type(scaler).__name__,
-                "args": scaler_args,
-                "state_dict": scaler.state_dict()},
+            # "scaler": {
+            #     "type": type(scaler).__name__,
+            #     "args": scaler_args,
+            #     "state_dict": scaler.state_dict()},
             # "scaler": {
             #     "type": type(scaler).__name__,
             #     "args": scaler_args,
@@ -1040,12 +1010,12 @@ if __name__ == '__main__':
 
             # loss_value = train(training_loader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
             #                 mask_weak=weak_mask, mask_strong=strong_mask, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)            
-            loss_value = train_mt(real_dataloader, syn_dataloader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
+            loss_value = train_mt(real_unlabeled_dataloader, real_weak_dataloader, syn_dataloader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
                             mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=domain_adv, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)
         else:
             #     loss_value = train(real_dataloader, crnn, optim, epoch,
             #                     mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)
-            loss_value = train_mt(real_dataloader, syn_dataloader, crnn, optim, epoch, ema_model=None, ema_predictor=None,
+            loss_value = train_mt(real_unlabeled_dataloader, real_weak_dataloader, syn_dataloader, crnn, optim, epoch, ema_model=None, ema_predictor=None,
                                 mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=domain_adv, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)
 
         # Validation
@@ -1053,7 +1023,8 @@ if __name__ == '__main__':
         predictor.eval()
         logger.info("\n ### Valid synthetic metric ### \n")
         saved_path_list = [os.path.join("./stored_data", model_name, "predictions", "result.csv")]
-        predictions, valid_synth, durations_synth = get_predictions(crnn, real_dataloader, many_hot_encoder.decode_strong, pooling_time_ratio,
+        # real_dataset = torch.utils.data.ConcatDataset([real_unlabeled_dataset, real_weak_dataset])
+        predictions, valid_synth, durations_synth = get_predictions(crnn, syn_dataloader, many_hot_encoder.decode_strong, pooling_time_ratio,
                                       median_window=median_window, save_predictions=saved_path_list, predictor=predictor)
         # Validation with synthetic data (dropping feature_filename for psds)
         # valid_synth = dfs["valid_synthetic"].drop("feature_filename", axis=1)

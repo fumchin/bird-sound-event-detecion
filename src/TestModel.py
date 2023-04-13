@@ -236,7 +236,7 @@ if __name__ == '__main__':
     # train_data, val_data = train_test_split(dataset, random_state=cfg.dataset_random_seed, train_size=0.5)
     
     val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
-    # train_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
+    # real_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
     # gt_df_feat = dataset.initialize_and_get_df(f_args.groundtruth_tsv, gt_audio_dir, nb_files=f_args.nb_files)
     params = _load_state_vars(expe_state, median_window, use_fpn, use_predictor)
 

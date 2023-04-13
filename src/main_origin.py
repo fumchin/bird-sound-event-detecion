@@ -627,7 +627,7 @@ if __name__ == '__main__':
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     
 
-    train_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
+    real_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
     syn_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
 
     scaler_val = Scaler()
@@ -640,13 +640,13 @@ if __name__ == '__main__':
     
 
     if cfg.syn_or_not == True:
-        train_dataset = torch.utils.data.ConcatDataset([train_dataset, syn_dataset])
+        real_dataset = torch.utils.data.ConcatDataset([real_dataset, syn_dataset])
     else:
-        train_dataset = train_dataset
+        real_dataset = real_dataset
     
     
     
-    train_dataloader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
+    real_dataloader = DataLoader(real_dataset, batch_size=cfg.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
     # weak_data = DataLoadDf(dfs["weak"], encod_func, transforms, in_memory=cfg.in_memory)
     # unlabel_data = DataLoadDf(dfs["unlabel"], encod_func, transforms, in_memory=cfg.in_memory_unlab)
@@ -885,10 +885,10 @@ if __name__ == '__main__':
 
             # loss_value = train(training_loader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
             #                 mask_weak=weak_mask, mask_strong=strong_mask, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)            
-            loss_value = train(train_dataloader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
+            loss_value = train(real_dataloader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
                             mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)
         else:
-            loss_value = train(train_dataloader, crnn, optim, epoch,
+            loss_value = train(real_dataloader, crnn, optim, epoch,
                             mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)
 
         # Validation
@@ -896,7 +896,7 @@ if __name__ == '__main__':
         predictor.eval()
         logger.info("\n ### Valid synthetic metric ### \n")
         saved_path_list = [os.path.join("./stored_data", model_name, "predictions", "result.csv")]
-        predictions, valid_synth, durations_synth = get_predictions(crnn, train_dataloader, many_hot_encoder.decode_strong, pooling_time_ratio,
+        predictions, valid_synth, durations_synth = get_predictions(crnn, real_dataloader, many_hot_encoder.decode_strong, pooling_time_ratio,
                                       median_window=median_window, save_predictions=saved_path_list, predictor=predictor)
         # Validation with synthetic data (dropping feature_filename for psds)
         # valid_synth = dfs["valid_synthetic"].drop("feature_filename", axis=1)

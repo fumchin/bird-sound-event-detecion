@@ -188,7 +188,7 @@ if __name__ == '__main__':
     median_window = f_args.median_window
     use_fpn = f_args.use_fpn
     use_predictor = f_args.use_predictor
-    test_model_name = "CRNN_fpn_0406_only_syn_2_001"
+    test_model_name = "CRNN_fpn_3000_weak_test"
     model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_best")
     # sf = f_args.sf
     # if sf:
@@ -220,38 +220,38 @@ if __name__ == '__main__':
     encod_func = many_hot_encoder.encode_strong_df
 
 
-    transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
-    train_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
-    syn_scaler_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    # transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
+    # train_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    # syn_scaler_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
 
 
-    scaler_args = []
-    scaler = Scaler()
+    # scaler_args = []
+    # scaler = Scaler()
 
-    scaler.calculate_scaler(train_scaler_dataset) 
+    # scaler.calculate_scaler(train_scaler_dataset) 
 
-    transforms_real = get_transforms(cfg.max_frames, scaler, add_axis_conv,
+    transforms_real = get_transforms(cfg.max_frames, None, add_axis_conv,
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    transforms_syn = get_transforms(cfg.max_frames, scaler, add_axis_conv,
+    transforms_syn = get_transforms(cfg.max_frames, None, add_axis_conv,
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     
 
-    train_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms_real, compute_log=True)
+    real_dataset = ENA_Dataset(preprocess_dir=cfg.train_unlabeled_feature_dir, encod_func=encod_func, transform=transforms_real, compute_log=True)
     syn_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_syn, compute_log=True)
     
 
     
-    real_dataloader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=False)
-    # real_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=False)
+    real_dataloader = DataLoader(real_dataset, batch_size=cfg.batch_size, shuffle=False)
+    # real_dataloader = DataLoader(real_dataset, batch_size=2, shuffle=False)
     prediction_dfs = pd.DataFrame()
-    # train_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
+    # real_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
     # gt_df_feat = dataset.initialize_and_get_df(f_args.groundtruth_tsv, gt_audio_dir, nb_files=f_args.nb_files)
     params = _load_state_vars(expe_state, median_window, use_fpn, use_predictor)
 
     model = params["model"]
     predictor=params["predictor"]
     decoder = params["many_hot_encoder"].decode_weak
-    # for counter, ((batch_x, y), indexes) in enumerate(train_dataset):
+    # for counter, ((batch_x, y), indexes) in enumerate(real_dataset):
     for i, (((input_data, ema_input_data), target), selected_file_path) in enumerate(real_dataloader):
         # indexes = indexes.numpy()
         input_data = to_cuda_if_available(input_data)
