@@ -9,14 +9,29 @@ annotation_dir = os.path.join(feature_dir, "annotation")
 
 # train_feature_dir = os.path.join(dataset_root, "train_preprocess")
 # train_annotation_dir = os.path.join(train_feature_dir, "annotation")
-train_unlabeled_feature_dir = os.path.join(dataset_root, "train_unlabeled_preprocess")
+train_unlabeled_feature_dir = os.path.join(dataset_root, "train_unlabeled_preprocess_quarter")
 train_unlabeled_annotation_dir = os.path.join(train_unlabeled_feature_dir, "annotation")
 
-train_weak_feature_dir = os.path.join(dataset_root, "train_weak_preprocess")
+train_weak_feature_dir = os.path.join(dataset_root, "train_weak_preprocess_quarter")
 train_weak_annotation_dir = os.path.join(train_weak_feature_dir, "annotation")
 
-val_feature_dir = os.path.join(dataset_root, "val_preprocess")
+val_feature_dir = os.path.join(dataset_root, "val_preprocess_quarter")
 val_annotation_dir = os.path.join(val_feature_dir, "annotation")
+
+# dataset_root = "/home/fumchin/data/bsed_20/dataset/ENA"
+# feature_dir = os.path.join(dataset_root, "preprocess_02")
+# annotation_dir = os.path.join(feature_dir, "annotation")
+
+# # train_feature_dir = os.path.join(dataset_root, "train_preprocess")
+# # train_annotation_dir = os.path.join(train_feature_dir, "annotation")
+# train_unlabeled_feature_dir = os.path.join(dataset_root, "train_unlabeled_preprocess_02")
+# train_unlabeled_annotation_dir = os.path.join(train_unlabeled_feature_dir, "annotation")
+
+# train_weak_feature_dir = os.path.join(dataset_root, "train_weak_preprocess_02")
+# train_weak_annotation_dir = os.path.join(train_weak_feature_dir, "annotation")
+
+# val_feature_dir = os.path.join(dataset_root, "val_preprocess_02")
+# val_annotation_dir = os.path.join(val_feature_dir, "annotation")
 
 
 syn_feature_dir = os.path.join("/home/fumchin/data/bsed_20/dataset/SYN", "preprocess")
@@ -58,7 +73,7 @@ batch_size = 12
 # model_name = "only_fix_detach_ada_no_prediction_"
 # model_name = "CRNN_fpn_scmt_test"
 
-model_name = 'CRNN_fpn_3000_weak_scmt'
+model_name = 'Quarter_3000_0414_CRNN_fpn_scmt'
 test_model_name = "CRNN_fpn_adlr"
 only_syn = True
 n_epoch = 300 #, variance after 100 may be too large

@@ -425,7 +425,7 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
         if ISP:
             # SCT
             # weak_freq_shift_class_loss = class_criterion(weak_freq_shift_pred[:weak_index], target_weak[:weak_index]) + class_criterion(weak_shift_pred[:weak_index], target_weak[:weak_index])
-            weak_freq_shift_class_loss = class_criterion(syn_weak_freq_shift_pred, syn_target_weak) + class_criterion(weak_freq_shift_pred[:weak_index], target_weak[:weak_index]) + class_criterion(weak_shift_pred[:weak_index], target_weak[:weak_index])
+            weak_freq_shift_class_loss = class_criterion(syn_weak_freq_shift_pred, syn_target_weak)
         else:
             # weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_strong]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_strong]), 0))
             pass
@@ -470,7 +470,7 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
             consistency_loss_strong = consistency_cost * consistency_criterion(strong_pred, strong_pred_ema)
             # consistency_loss_strong += consistency_cost * consistency_criterion(syn_strong_pred, syn_strong_pred_ema)
             meters.update('Consistency strong', consistency_loss_strong.item())
-            # meters.update('Consistency weight', consistency_cost)
+            meters.update('Consistency weight', consistency_cost)
             # Take consistency about weak predictions (all data)
             consistency_loss_weak = consistency_cost * consistency_criterion(weak_pred, weak_pred_ema)
             # consistency_loss_weak += consistency_cost * consistency_criterion(syn_weak_pred, syn_weak_pred_ema)
@@ -501,14 +501,17 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
         
         if ema_model is not None:
             loss = loss + (consistency_loss_weak + consistency_loss_strong)
+            # consistency_loss_shift = consistency_cost/2 * consistency_criterion(syn_strong_shift_pred, strong_pred_shift)    
+            # loss = loss + (weak_freq_shift_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
+            # loss = loss + (consistency_loss_weak)
         
         if ISP:
             # Add shift consistency loss
-            consistency_loss_shift = consistency_cost/2 * (consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift) + consistency_criterion(strong_shift_pred, strong_pred_shift))
-            loss = loss + (weak_freq_shift_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
-            # consistency_loss_shift = consistency_cost/2 * consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift)
-            # loss = loss + (strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
-            loss = loss + (consistency_loss_strong_shift + consistency_loss_weak_shift + consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
+            # consistency_loss_shift = consistency_cost/2 * (consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift) + consistency_criterion(strong_shift_pred, strong_pred_shift))
+            # loss = loss + (weak_freq_shift_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
+            consistency_loss_shift = consistency_cost/2 * consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift)
+            loss = loss + (strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
+            # loss = loss + (consistency_loss_strong_shift + consistency_loss_weak_shift) + (consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
         
         # if discriminator is not None:
         #     loss += domain_loss

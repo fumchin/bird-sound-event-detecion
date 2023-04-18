@@ -156,6 +156,7 @@ def ena_data_preprocess(dataset_root):
             # eliminate the bird not in the bird list
             annotation_df.rename(columns = {'Begin Time (s)':'onset', 'End Time (s)':'offset', 'Species':'event_label'}, inplace = True)
             annotation_df = annotation_df[annotation_df["event_label"].isin(cfg.bird_list)]
+            annotation_df = annotation_df[(annotation_df['offset'] - annotation_df['onset']) > 0.2]
             
             # cut audio data every 10 sec, puting into list
             audio_seg_list = librosa.util.frame(audio, frame_length=cfg.seg_sec*sr, hop_length=cfg.seg_sec*sr, axis=0)
@@ -202,11 +203,11 @@ def data_split(dataset_root):
     
     random.seed(1215)
 
-    saved_path = os.path.join(cfg.dataset_root, "preprocess")
+    saved_path = os.path.join(cfg.dataset_root, "preprocess_02")
     mel_saved_path = os.path.join(saved_path, "wav")
     annotation_saved_path = os.path.join(saved_path, "annotation")
     
-    train_unlabeled_saved_path = os.path.join(cfg.dataset_root, "train_unlabeled_preprocess")
+    train_unlabeled_saved_path = os.path.join(cfg.dataset_root, "train_unlabeled_preprocess_quarter_02")
     train_unlabeled_mel_saved_path = os.path.join(train_unlabeled_saved_path, "wav")
     train_unlabeled_annotation_saved_path = os.path.join(train_unlabeled_saved_path, "annotation")
 
@@ -214,7 +215,7 @@ def data_split(dataset_root):
         os.makedirs(train_unlabeled_mel_saved_path)
         os.makedirs(train_unlabeled_annotation_saved_path)
     
-    train_weak_saved_path = os.path.join(cfg.dataset_root, "train_weak_preprocess")
+    train_weak_saved_path = os.path.join(cfg.dataset_root, "train_weak_preprocess_quarter_02")
     train_weak_mel_saved_path = os.path.join(train_weak_saved_path, "wav")
     train_weak_annotation_saved_path = os.path.join(train_weak_saved_path, "annotation")
 
@@ -222,7 +223,7 @@ def data_split(dataset_root):
         os.makedirs(train_weak_mel_saved_path)
         os.makedirs(train_weak_annotation_saved_path)
 
-    val_saved_path = os.path.join(cfg.dataset_root, "val_preprocess")
+    val_saved_path = os.path.join(cfg.dataset_root, "val_preprocess_quarter_02")
     val_mel_saved_path = os.path.join(val_saved_path, "wav")
     val_annotation_saved_path = os.path.join(val_saved_path, "annotation")
     
@@ -236,8 +237,8 @@ def data_split(dataset_root):
     train_mel_set =  set(random.sample(set(total_mel_file_list), int(len(total_mel_file_list)/2)))
     val_mel_set = set(total_mel_file_list) - train_mel_set
 
-    train_unlabel_mel_set = set(random.sample(set(train_mel_set), int(len(train_mel_set)/2)))
-    train_weak_mel_set = set(train_mel_set) - train_unlabel_mel_set
+    train_weak_mel_set = set(random.sample(set(train_mel_set), int(len(train_mel_set)/4)))
+    train_unlabel_mel_set = set(train_mel_set) - train_weak_mel_set
     
     # print(len(train_mel_set))
     for mel_file_path in train_unlabel_mel_set:
