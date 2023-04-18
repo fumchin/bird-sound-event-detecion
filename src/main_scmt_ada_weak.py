@@ -393,11 +393,12 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
             syn_strong_pred_shift = syn_strong_pred_shift.detach() 
             # Shifted prediction
 
+            encoded_x_shift, _ = model(batch_input_shift)
+            strong_shift_pred, weak_shift_pred = predictor(encoded_x_shift)
+            
             encoded_x_freq_shift, _ = model(batch_input_freq_shift)
             strong_freq_shift_pred, weak_freq_shift_pred = predictor(encoded_x_freq_shift)
 
-            encoded_x_shift, _ = model(batch_input_shift)
-            strong_shift_pred, weak_shift_pred = predictor(encoded_x_shift)
 
             syn_encoded_x_shift, _ = model(syn_batch_input_shift)
             syn_strong_shift_pred, syn_weak_shift_pred = predictor(syn_encoded_x_shift)
@@ -508,7 +509,7 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
             loss = loss + (weak_freq_shift_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
             # consistency_loss_shift = consistency_cost/2 * consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift)
             # loss = loss + (strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
-            loss = loss + (consistency_loss_strong_shift + consistency_loss_weak_shift + consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
+            loss = loss + consistency_cost/2 * (consistency_loss_strong_shift + consistency_loss_weak_shift + consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
         
         # if discriminator is not None:
         #     loss += domain_loss
