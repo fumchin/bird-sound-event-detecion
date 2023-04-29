@@ -69,6 +69,8 @@ def adjust_learning_rate(optimizer, rampup_value, rampdown_value=1, optimizer_d=
     # if c_epoch % 25 == 0:
     # lr = 0.001 * pow(0.5, c_epoch//25)
     # lr_adv = lr_adv * 0.1
+    if c_epoch > 100:
+        lr = lr * (0.5 ** (1 + ((c_epoch - 100) // 20)))
     
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
@@ -279,7 +281,8 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
  
         global_step = c_epoch * len(syn_loader) + i
         niter = c_epoch * len(syn_loader) + i
-        rampup_value = ramps.exp_rampup(global_step, cfg.n_epoch_rampup*len(syn_loader))
+        # rampup_value = ramps.exp_rampup(global_step, cfg.n_epoch_rampup*len(syn_loader))
+        rampup_value = ramps.sigmoid_rampdown(c_epoch, 30)
 
         adv_step = (c_epoch-start_epoch) * len(syn_loader) + i
         rampup_value_adv = ramps.exp_rampup(adv_step, cfg.n_epoch_rampup*len(syn_loader))
@@ -426,7 +429,7 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
         if ISP:
             # SCT
             # weak_freq_shift_class_loss = class_criterion(weak_freq_shift_pred[:weak_index], target_weak[:weak_index]) + class_criterion(weak_shift_pred[:weak_index], target_weak[:weak_index])
-            weak_freq_shift_class_loss = class_criterion(syn_weak_freq_shift_pred, syn_target_weak) + class_criterion(weak_freq_shift_pred[:weak_index], target_weak[:weak_index]) + class_criterion(weak_shift_pred[:weak_index], target_weak[:weak_index])
+            weak_freq_shift_class_loss = class_criterion(syn_weak_freq_shift_pred, syn_target_weak) + class_criterion(weak_freq_shift_pred[:weak_index], target_weak[:weak_index])
         else:
             # weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_strong]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_strong]), 0))
             pass
@@ -483,7 +486,7 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
                 meters.update('Consistency strong shift', consistency_loss_strong_shift.item())
 
                 # Take consistency about shift weak predictions (all data)
-                consistency_loss_weak_shift = consistency_cost * consistency_criterion(weak_shift_pred, weak_pred_shift_ema)
+                consistency_loss_weak_shift = consistency_cost * consistency_criterion(weak_shift_pred[weak_index:], weak_pred_shift_ema[weak_index:])
                 meters.update('Consistency weak shift', consistency_loss_weak_shift.item())
 
                 # Take consistency about shift strong predictions (all data)
@@ -492,7 +495,7 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
                 meters.update('Consistency strong freq shift', consistency_loss_strong_freq_shift.item())
 
                 # Take consistency about shift weak predictions (all data)
-                consistency_loss_weak_freq_shift = consistency_cost * consistency_criterion(weak_freq_shift_pred, weak_pred_freq_shift_ema)
+                consistency_loss_weak_freq_shift = consistency_cost * consistency_criterion(weak_freq_shift_pred[weak_index:], weak_pred_freq_shift_ema[weak_index:])
                 meters.update('Consistency weak freq shift', consistency_loss_weak_freq_shift.item())       
  
  
@@ -509,7 +512,8 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
             loss = loss + (weak_freq_shift_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
             # consistency_loss_shift = consistency_cost/2 * consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift)
             # loss = loss + (strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
-            loss = loss + consistency_cost/2 * (consistency_loss_strong_shift + consistency_loss_weak_shift + consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
+            # loss = loss + 1/2 * (consistency_loss_strong_shift + consistency_loss_weak_shift + consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
+            loss = loss + 1/2 * (consistency_loss_strong_shift + consistency_loss_strong_freq_shift)
         
         # if discriminator is not None:
         #     loss += domain_loss
@@ -650,7 +654,7 @@ if __name__ == '__main__':
 
     out_nb_frames_1s = cfg.sr / cfg.hop_size / pooling_time_ratio
     median_window = max(int(cfg.median_window_s * out_nb_frames_1s), 1)
-    # median_window = 10
+    # median_window = 8
     # logger.debug(f"median_window: {median_window}")
     # ##############
     # DATA

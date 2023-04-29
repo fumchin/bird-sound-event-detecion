@@ -73,7 +73,7 @@ batch_size = 12
 # model_name = "only_fix_detach_ada_no_prediction_"
 # model_name = "CRNN_fpn_scmt_test"
 
-model_name = 'Quarter_3000_0414_CRNN_fpn_scmt'
+model_name = 'Quarter_3000_0414_CRNN_fpn_scmt_unlabeledAll_weaklyStrong_and_weakFreq'
 test_model_name = "CRNN_fpn_adlr"
 only_syn = True
 n_epoch = 300 #, variance after 100 may be too large
@@ -93,7 +93,7 @@ es_init_wait = 50  # es for early stopping
 adjust_lr = True
 max_learning_rate = 0.001 #0.001  # Used if adjust_lr is True
 default_learning_rate = 0.001#0.001  # Used if adjust_lr is False
-max_consistency_cost = 0.1
+max_consistency_cost = 1
 
 # bird list
 bird_list = \
