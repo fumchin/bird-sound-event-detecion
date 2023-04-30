@@ -4,18 +4,18 @@ import os, os.path
 import torch
 # path related
 dataset_root = "/home/fumchin/data/bsed_20/dataset/ENA"
-feature_dir = os.path.join(dataset_root, "preprocess")
+feature_dir = os.path.join(dataset_root, "preprocess_02")
 annotation_dir = os.path.join(feature_dir, "annotation")
 
 # train_feature_dir = os.path.join(dataset_root, "train_preprocess")
 # train_annotation_dir = os.path.join(train_feature_dir, "annotation")
-train_unlabeled_feature_dir = os.path.join(dataset_root, "train_unlabeled_preprocess_quarter")
+train_unlabeled_feature_dir = os.path.join(dataset_root, "train_unlabeled_preprocess_quarter_02")
 train_unlabeled_annotation_dir = os.path.join(train_unlabeled_feature_dir, "annotation")
 
-train_weak_feature_dir = os.path.join(dataset_root, "train_weak_preprocess_quarter")
+train_weak_feature_dir = os.path.join(dataset_root, "train_weak_preprocess_quarter_02")
 train_weak_annotation_dir = os.path.join(train_weak_feature_dir, "annotation")
 
-val_feature_dir = os.path.join(dataset_root, "val_preprocess_quarter")
+val_feature_dir = os.path.join(dataset_root, "val_preprocess_quarter_02")
 val_annotation_dir = os.path.join(val_feature_dir, "annotation")
 
 # dataset_root = "/home/fumchin/data/bsed_20/dataset/ENA"
@@ -73,7 +73,9 @@ batch_size = 12
 # model_name = "only_fix_detach_ada_no_prediction_"
 # model_name = "CRNN_fpn_scmt_test"
 
-model_name = 'Quarter_3000_0414_CRNN_fpn_scmt_unlabeledAll_weaklyStrong_and_weakFreq'
+# model_name = 'Quarter_3000_0414_CRNN_fpn_scmt_unlabeledAll_weaklyStrong_and_weakFreq'
+model_name = '0429_Quarter_3000_02_CRNN_fpn_scmt_ada'
+at_model_name = '0429_Quarter_3000_02_at_system'
 test_model_name = "CRNN_fpn_adlr"
 only_syn = True
 n_epoch = 300 #, variance after 100 may be too large

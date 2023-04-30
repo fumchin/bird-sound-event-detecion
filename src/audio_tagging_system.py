@@ -419,13 +419,13 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
         # FOR WEAK LABEL
         # ======================================================================================================
         syn_target_weak = syn_target.max(-2)[0]  # Take the max in the time axis
-        weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
+        weak_class_loss = 0.3 * class_criterion(syn_weak_pred, syn_target_weak)
         weak_index = target_weak.shape[0] // 2
         if ema_model is not None:
             # weak_class_loss += class_criterion(weak_pred, target_weak)
-            weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
+            weak_class_loss += 0.7 * class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
         else:
-            weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
+            weak_class_loss += 0.7 * class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
         if ISP:
             # SCT
             # weak_freq_shift_class_loss = class_criterion(weak_freq_shift_pred[:weak_index], target_weak[:weak_index]) + class_criterion(weak_shift_pred[:weak_index], target_weak[:weak_index])
@@ -501,7 +501,7 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
  
         # Calculate loss for labeled data
         
-        loss = strong_class_loss + weak_class_loss
+        loss = weak_class_loss
         
         if ema_model is not None:
             loss = loss + (consistency_loss_weak + consistency_loss_strong)
@@ -619,12 +619,12 @@ if __name__ == '__main__':
         meanteacher = True
 
     # model_name = 'test_adaptation_FPN'# name your own model
-    model_name = cfg.model_name # name your own model
+    model_name = cfg.at_model_name # name your own model
 
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 1
+    start_epoch = 0
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -953,6 +953,7 @@ if __name__ == '__main__':
     # ##############
     # Train
     # ##############
+    current_loss_min = np.inf
     results = pd.DataFrame(columns=["loss", "valid_synth_f1", "weak_metric", "global_valid"])
     for epoch in range(start_epoch, cfg.n_epoch):
         crnn.train()
@@ -1045,9 +1046,11 @@ if __name__ == '__main__':
         #         logger.warn("EARLY STOPPING")
         #         break
         
-        if save_best_cb.apply(valid_real_f1):
+        if loss_value.item() < current_loss_min:
             model_fname = os.path.join(saved_model_dir, "baseline_best")
             torch.save(state, model_fname)
+            current_loss_min = loss_value.item()
+
         results.loc[epoch, "global_valid"] = valid_real_f1
         results.loc[epoch, "loss"] = loss_value.item()
         results.loc[epoch, "valid_synth_f1"] = valid_real_f1
