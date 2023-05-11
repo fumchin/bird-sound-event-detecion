@@ -120,12 +120,41 @@ def over(df):
             result_df = pd.concat([result_df, current_df], axis=0, ignore_index=True)
     return result_df
 
+def merge(all_df):
+    df = all_df
+    grouped = df.groupby(['event_label'])
+    new_df = pd.DataFrame(columns=df.columns)
+    for key, item in grouped:
+        temp = grouped.get_group(key)
+        temp = temp.sort_values(by=['onset'])
+        for i, row in temp.iterrows():
+            try:
+                mask = ((abs(temp['offset'] - row['onset']) < 0.15) & ((temp['onset'] - row['offset']) != 0))
+                if(temp[mask].empty == False):
+                    # merge two rows
+                    # print(temp[mask])
+                    # print(row.to_frame().T)
+                    merged = temp[mask].copy()
+                    merged['offset'] = row['offset']
+                    # merged = pd.concat([temp[mask], row.to_frame().T], axis=0, ignore_index=True)
+                    temp = temp.drop([i, temp[mask].index.tolist()[0]])
+                    temp = pd.concat([temp, merged], axis=0)
+                    temp = temp.sort_values(by=['onset'])
+                    # print(temp)
+                    # break
+            except:
+                break
+        new_df = pd.concat([new_df, temp], axis=0, ignore_index=True)
+
+    new_df = new_df.reset_index(drop=True)
+    return new_df
+
 def ena_data_preprocess(dataset_root):
     annotation_path = os.path.join(dataset_root, "annotation")
     recording_path = os.path.join(dataset_root, "wav")
     domain_name_list = [name for name in os.listdir(annotation_path) if "Recording" in name]
     
-    saved_path = os.path.join(cfg.dataset_root, "preprocess")
+    saved_path = os.path.join(cfg.dataset_root, "preprocess_02_015")
     
     mel_saved_path = os.path.join(saved_path, "wav")
     annotation_saved_path = os.path.join(saved_path, "annotation")
@@ -153,9 +182,14 @@ def ena_data_preprocess(dataset_root):
             audio, sr = librosa.load(current_audio_files_path, sr=cfg.sr)
             annotation_df = pd.read_csv(current_annotation_file_path, sep="\t")
             
-            # eliminate the bird not in the bird list
+            # 2. eliminate the bird not in the bird list
             annotation_df.rename(columns = {'Begin Time (s)':'onset', 'End Time (s)':'offset', 'Species':'event_label'}, inplace = True)
             annotation_df = annotation_df[annotation_df["event_label"].isin(cfg.bird_list)]
+            
+            
+            # 3. merge the different row that gap less than 0.15 sec
+            annotation_df = merge(annotation_df)
+            # 4. eliminate the bird with duration less than 0.2 sec
             annotation_df = annotation_df[(annotation_df['offset'] - annotation_df['onset']) > 0.2]
             
             # cut audio data every 10 sec, puting into list
@@ -182,11 +216,9 @@ def ena_data_preprocess(dataset_root):
                 df_current_filter["onset"] = df_current_filter["onset"] - current_time_min
                 df_current_filter["offset"] = df_current_filter["offset"] - current_time_min
                 
-                # df_current_filter_2 = df_current_filter
-                # same event_label but overlap
+
                 df_current_filter_2 = same_event_label_overlap(df = df_current_filter)
-                # df_current_filter_2 = over(df = df_current_filter_2)
-                # df_current_filter = df_current_filter.sort_values(by=['onset'])
+
                 if df_current_filter_2 is None:
                     df_current_filter_2 = pd.DataFrame(columns=["onset", "offset", "event_label"])
                 df_current_filter_2 = df_current_filter_2.drop_duplicates()
@@ -203,11 +235,11 @@ def data_split(dataset_root):
     
     random.seed(1215)
 
-    saved_path = os.path.join(cfg.dataset_root, "preprocess_02")
+    saved_path = os.path.join(cfg.dataset_root, "preprocess_02_015")
     mel_saved_path = os.path.join(saved_path, "wav")
     annotation_saved_path = os.path.join(saved_path, "annotation")
     
-    train_unlabeled_saved_path = os.path.join(cfg.dataset_root, "train_unlabeled_preprocess_quarter_02")
+    train_unlabeled_saved_path = os.path.join(cfg.dataset_root, "train_unlabeled_preprocess_quarter_02_015")
     train_unlabeled_mel_saved_path = os.path.join(train_unlabeled_saved_path, "wav")
     train_unlabeled_annotation_saved_path = os.path.join(train_unlabeled_saved_path, "annotation")
 
@@ -215,7 +247,7 @@ def data_split(dataset_root):
         os.makedirs(train_unlabeled_mel_saved_path)
         os.makedirs(train_unlabeled_annotation_saved_path)
     
-    train_weak_saved_path = os.path.join(cfg.dataset_root, "train_weak_preprocess_quarter_02")
+    train_weak_saved_path = os.path.join(cfg.dataset_root, "train_weak_preprocess_quarter_02_015")
     train_weak_mel_saved_path = os.path.join(train_weak_saved_path, "wav")
     train_weak_annotation_saved_path = os.path.join(train_weak_saved_path, "annotation")
 
@@ -223,7 +255,7 @@ def data_split(dataset_root):
         os.makedirs(train_weak_mel_saved_path)
         os.makedirs(train_weak_annotation_saved_path)
 
-    val_saved_path = os.path.join(cfg.dataset_root, "val_preprocess_quarter_02")
+    val_saved_path = os.path.join(cfg.dataset_root, "val_preprocess_quarter_02_015")
     val_mel_saved_path = os.path.join(val_saved_path, "wav")
     val_annotation_saved_path = os.path.join(val_saved_path, "annotation")
     
@@ -262,6 +294,6 @@ def data_split(dataset_root):
 
 if __name__ == '__main__':
     dataset_root = cfg.dataset_root
-    # ena_data_preprocess(cfg.dataset_root)
+    ena_data_preprocess(cfg.dataset_root)
     data_split(cfg.dataset_root)
     # syn_data_preprocess()
