@@ -428,13 +428,10 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
         weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
         weak_index = target_weak.shape[0] // 2
         if ema_model is not None:
-            weak_class_loss += class_criterion(weak_pred, target_weak)
-            # weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
+            # weak_class_loss += class_criterion(weak_pred, target_weak)
+            weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
         else:
-            # weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
-            weak_class_loss += class_criterion(weak_pred, target_weak)
-
-
+            weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
         if ISP:
             # SCT
             # weak_freq_shift_class_loss = class_criterion(weak_freq_shift_pred[:weak_index], target_weak[:weak_index]) + class_criterion(weak_shift_pred[:weak_index], target_weak[:weak_index])
@@ -637,12 +634,12 @@ if __name__ == '__main__':
         meanteacher = True
 
     # model_name = 'test_adaptation_FPN'# name your own model
-    model_name = cfg.model_name # name your own model
+    model_name = cfg.at_model_name # name your own model
 
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 0
+    start_epoch = 82
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -711,64 +708,26 @@ if __name__ == '__main__':
 
     real_unlabeled_dataset = ENA_Dataset_unlabeled(preprocess_dir=cfg.train_unlabeled_feature_dir, encod_func=weak_encod_func, transform=transforms_real, compute_log=True)
     real_weak_dataset = ENA_Dataset(preprocess_dir=cfg.train_weak_feature_dir, encod_func=encod_func, transform=transforms_real, compute_log=True)
+    
+    real_weak_train_dataset, real_weak_val_dataset = train_test_split(real_weak_dataset, test_size=0.5, random_state=cfg.dataset_random_seed)
+    
     syn_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_syn, compute_log=True)
 
     scaler_val = Scaler()
     # scaler_val.calculate_scaler(val_scaler_dataset) 
-    transforms_valid = get_transforms(cfg.max_frames, None, add_axis_conv,
-                                      noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_valid, compute_log=True)
-    
+    # transforms_valid = get_transforms(cfg.max_frames, None, add_axis_conv,
+    #                                   noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
+    # val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_valid, compute_log=True)
     
     
 
-    # if meanteacher == False:
-    #     real_dataset = torch.utils.data.ConcatDataset([real_dataset, syn_dataset])
-    #     # real_dataset = torch.utils.data.TensorDataset(real_dataset, syn_dataset)
-    # else:
-    #     real_dataset = real_dataset
     
     
     
     real_unlabeled_dataloader = DataLoader(real_unlabeled_dataset, batch_size=cfg.batch_size//2, shuffle=True)
-    real_weak_dataloader = DataLoader(real_weak_dataset, batch_size=cfg.batch_size//2, shuffle=True)
+    real_weak_dataloader = DataLoader(real_weak_train_dataset, batch_size=cfg.batch_size//2, shuffle=True)
     syn_dataloader = DataLoader(syn_dataset, batch_size=cfg.batch_size, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
-    # syn_dataloader = real_dataloader
-    # weak_data = DataLoadDf(dfs["weak"], encod_func, transforms, in_memory=cfg.in_memory)
-    # unlabel_data = DataLoadDf(dfs["unlabel"], encod_func, transforms, in_memory=cfg.in_memory_unlab)
-    # train_synth_data = DataLoadDf(dfs["train_synthetic"], encod_func, transforms, in_memory=cfg.in_memory)
-    # valid_synth_data = DataLoadDf(dfs["valid_synthetic"], encod_func, transforms_valid,
-    #                               return_indexes=True, in_memory=cfg.in_memory)
-
-    # real validation data
-    # validation_data = DataLoadDf(dfs["validation"], encod_func, transform=transforms_valid, return_indexes=True, in_memory=cfg.in_memory)
-    # weak_dataload = DataLoadDf(dfs["validation"], many_hot_encoder.encode_weak, transforms_valid, return_indexes=True, in_memory=cfg.in_memory)
-    # logger.debug(f"len synth: {len(train_synth_data)}, len_unlab: {len(unlabel_data)}, len weak: {len(weak_data)}")
-
-    # if stage == 'adaptation' or (stage=='pretrain' and meanteacher):
-    #     if not no_synthetic:
-    #         list_dataset = [weak_data, unlabel_data, train_synth_data]
-    #         batch_sizes = [cfg.batch_size//4, cfg.batch_size//2, cfg.batch_size//4]
-    #         strong_mask = slice((3*cfg.batch_size)//4, cfg.batch_size)
-    #     else:
-    #         list_dataset = [weak_data, unlabel_data]
-    #         batch_sizes = [cfg.batch_size // 4, 3 * cfg.batch_size // 4]
-    #         strong_mask = None
-    #     weak_mask = slice(batch_sizes[0])  # Assume weak data is always the first one
-    # else:
-    #     list_dataset = [weak_data, train_synth_data]
-    #     batch_sizes = [cfg.batch_size//2, cfg.batch_size//2]
-    #     strong_mask = slice((cfg.batch_size)//2, cfg.batch_size)
-    #     weak_mask = slice(batch_sizes[0])
-
-    # concat_dataset = ConcatDataset(list_dataset)
-    # sampler = MultiStreamBatchSampler(concat_dataset, batch_sizes=batch_sizes)
-    # training_loader = DataLoader(concat_dataset, batch_sampler=sampler)
-    # valid_synth_loader = DataLoader(valid_synth_data, batch_size=cfg.batch_size)
-    # # real validation data
-    # validation_dataloader = DataLoader(validation_data, batch_size=cfg.batch_size, shuffle=False, drop_last=False)
-    # validation_dataloader_weak = DataLoader(weak_dataload, batch_size=cfg.batch_size, shuffle=False, drop_last=False)
+    val_dataloader = DataLoader(real_weak_val_dataset, batch_size=cfg.batch_size, shuffle=False)
 
     # ##############
     # Model
@@ -787,7 +746,7 @@ if __name__ == '__main__':
             discriminator = Frame_Discriminator(**discriminator_kwargs)
         elif f_args.level == 'clip':
             discriminator = Clip_Discriminator(**discriminator_kwargs)
-        domain_adv  = ConditionalDomainAdversarialLoss(discriminator, entropy_conditioning=False,
+        domain_adv  = ConditionalDomainAdversarialLoss(discriminator, entropy_conditioning=True,
         num_classes=20, features_dim=256*313, randomized=True,
         randomized_dim=8192)
     else:
@@ -830,7 +789,7 @@ if __name__ == '__main__':
         crnn.load_state_dict(expe_state["model"]["state_dict"])
         
         if stage == 'adaptation':
-            if start_epoch == 1 or start_epoch == 51 or start_epoch == 0:
+            if start_epoch == 1 or start_epoch == 51:
                 discriminator.apply(weights_init) # for adversarial training
             else:
                 discriminator.load_state_dict(expe_state["model_d"]["state_dict"])
@@ -852,18 +811,18 @@ if __name__ == '__main__':
             param.detach_()
 
     # optim_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    # optim_d_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    optim_d_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
     optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
     optim_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
-    optim_d_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    # optim_d_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
     # optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
 
     optim = torch.optim.Adam(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
     # optim = torch.optim.SGD(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
     optim_crnn = torch.optim.SGD(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
     if stage == 'adaptation':
-        # optim_d = torch.optim.SGD(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
-        optim_d = torch.optim.Adam(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
+        optim_d = torch.optim.SGD(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
+        # optim_d = torch.optim.Adam(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
         
         if start_epoch > 1 and start_epoch != 51:
             optim.load_state_dict(expe_state['optimizer']['state_dict'])
@@ -1006,11 +965,11 @@ if __name__ == '__main__':
         predictor.eval()
         logger.info("\n ### Valid synthetic metric ### \n")
         saved_path_list = [os.path.join("./stored_data", model_name, "predictions", "result.csv")]
-        # real_dataset = torch.utils.data.ConcatDataset([real_unlabeled_dataset, real_weak_dataset])
+        
         predictions, valid_synth, durations_synth = get_predictions(crnn, syn_dataloader, many_hot_encoder.decode_strong, pooling_time_ratio,
                                       median_window=median_window, save_predictions=saved_path_list, predictor=predictor)
         # Validation with synthetic data (dropping feature_filename for psds)
-        # valid_synth = dfs["valid_synthetic"].drop("feature_filename", axis=1)
+        
         ct_matrix, valid_synth_f1, psds_m_f1 = compute_metrics(predictions, valid_synth, durations_synth)
         writer.add_scalar('Strong F1-score', valid_synth_f1, epoch)
         # Real validation data
@@ -1028,9 +987,10 @@ if __name__ == '__main__':
         print("cross-trigger confusion matrix")
         # print_ct_matrix(ct_matrix)
         # Evaluate weak
-        # weak_metric = get_f_measure_by_class(crnn, len(cfg.classes), validation_dataloader_weak, predictor=predictor)
-        # writer.add_scalar("Weak F1-score macro averaged", np.mean(weak_metric), epoch)  
-
+        weak_metric = get_f_measure_by_class(crnn, len(cfg.bird_list), val_dataloader, predictor=predictor)
+        writer.add_scalar("Weak F1-score macro averaged", np.mean(weak_metric), epoch)  
+        val_weak_f1 = np.mean(weak_metric)
+        print(weak_metric)
         # Update state
         state['model']['state_dict'] = crnn.state_dict()
         state['model_p']['state_dict'] = predictor.state_dict()
@@ -1064,15 +1024,15 @@ if __name__ == '__main__':
         #         logger.warn("EARLY STOPPING")
         #         break
         
-        if save_best_cb.apply(valid_real_f1):
+        if save_best_cb.apply(val_weak_f1):
             model_fname = os.path.join(saved_model_dir, "baseline_best")
             torch.save(state, model_fname)
-        results.loc[epoch, "global_valid"] = valid_real_f1
+        results.loc[epoch, "global_valid"] = val_weak_f1
         results.loc[epoch, "loss"] = loss_value.item()
-        results.loc[epoch, "valid_synth_f1"] = valid_real_f1
+        results.loc[epoch, "valid_synth_f1"] = val_weak_f1
 
         if cfg.early_stopping:
-            if early_stopping_call.apply(valid_real_f1):
+            if early_stopping_call.apply(val_weak_f1):
                 logger.warn("EARLY STOPPING")
                 break
 

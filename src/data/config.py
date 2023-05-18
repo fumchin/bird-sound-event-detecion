@@ -74,9 +74,10 @@ batch_size = 12
 # model_name = "CRNN_fpn_scmt_test"
 
 # model_name = 'Quarter_3000_0414_CRNN_fpn_scmt_unlabeledAll_weaklyStrong_and_weakFreq'
-model_name = '0505_Quarter_3000_02_015_CRNN_fpn_scmt'
+model_name = '0505_Quarter_3000_02_015_CRNN_fpn_pl_cheat_cdan_SGD'
 # model_name = 'test'
-at_model_name = '0429_Quarter_3000_02_at_system'
+# at_model_name = '0429_Quarter_3000_02_at_system'
+at_model_name = '0505_Quarter_3000_02_015_CRNN_fpn_scmt'
 test_model_name = "CRNN_fpn_adlr"
 only_syn = True
 n_epoch = 300 #, variance after 100 may be too large

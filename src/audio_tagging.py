@@ -188,7 +188,8 @@ if __name__ == '__main__':
     median_window = f_args.median_window
     use_fpn = f_args.use_fpn
     use_predictor = f_args.use_predictor
-    test_model_name = "CRNN_fpn_3000_weak_test"
+    test_model_name = cfg.at_model_name
+    # test_model_name = "CRNN_fpn_3000_weak_test"
     model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_best")
     # sf = f_args.sf
     # if sf:
