@@ -125,7 +125,7 @@ if __name__ == '__main__':
     # model_list = ['fum_IP_fusion', 'fum_IP_fusion_2', 'fum_IP_fusion_3', 'fum_IP_fusion_4', 'fum_IP_fusion_5', 'fum_IP_fusion_6']
     # model_list = ['CRNN_0323_fpn_ada_official_default_lr_advw_10', 'CRNN_0323_fpn_ada_official_default_lr_advw_5', 'CRNN_fpn']
     # model_list = ['only_fixed_ada_no_prediction_', 'only_ada_no_prediction', 'only_ada_no_prediction_2']
-    model_list = ['CRNN_fpn_3000_scmt_stage2']
+    model_list = ['0523_Quarter_3000_02_015_CRNN_fpn_mt_resPL', '0523_Quarter_3000_02_015_CRNN_fpn_mt_resPL_cdan_clip_stage2_seperate_SGD_lr_test']
     for model_name in model_list:
         print(model_name)
         ADA_path = os.path.join("./stored_data", model_name, "embedded_features")
@@ -147,7 +147,7 @@ if __name__ == '__main__':
         # load and concatenate ADA synthetic features
         for feature_path in os.listdir(ADA_synth_path):
             if feature_path == os.listdir(ADA_synth_path)[0]:
-                ADA_synth_feature = np.load(os.path.join(ADA_synth_path, feature_path))
+                ADA_synth_feature = np.load(os.path.join(ADA_synth_path, feature_path), allow_pickle=True)
             else:
                 ADA_synth_feature = np.concatenate((ADA_synth_feature, np.load(os.path.join(ADA_synth_path, feature_path))), axis=0)
         ADA_synth_feature = ADA_synth_feature.reshape(ADA_synth_feature.shape[0], ADA_synth_feature.shape[1]*ADA_synth_feature.shape[2])
@@ -163,7 +163,7 @@ if __name__ == '__main__':
         # load and concatenate ADA real features
         for feature_path in os.listdir(ADA_real_path):
             if feature_path == os.listdir(ADA_real_path)[0]:
-                ADA_real_feature = np.load(os.path.join(ADA_real_path, feature_path))
+                ADA_real_feature = np.load(os.path.join(ADA_real_path, feature_path), allow_pickle=True)
             else:
                 ADA_real_feature = np.concatenate((ADA_real_feature, np.load(os.path.join(ADA_real_path, feature_path))), axis=0)
         ADA_real_feature = ADA_real_feature.reshape(ADA_real_feature.shape[0], ADA_real_feature.shape[1]* ADA_real_feature.shape[2])

@@ -12,6 +12,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import pandas as pd
 import torch
+from torchvision.utils import save_image
 from psds_eval import plot_psd_roc, PSDSEval
 
 import data.config as cfg
@@ -163,6 +164,7 @@ def get_predictions(model, dataloader, decoder, pooling_time_ratio=1, thresholds
         with torch.no_grad():
             if predictor != None:
                 encoded_x, feature_out = model(input_data)
+                # encoded_x = encoded_x.unsqueeze(1)
                 # feature_out = feature_out.reshape(feature_out.shape[0], -1)
                 if fpn:
                     pred_strong, _ = predictor(encoded_x, inference=True)
@@ -171,6 +173,7 @@ def get_predictions(model, dataloader, decoder, pooling_time_ratio=1, thresholds
                 
                 if saved_feature_dir != None:
                     np.save(os.path.join(saved_feature_dir, '{}'.format(i)), feature_out.cpu().detach().numpy())
+                    # save_image(feature_out[0], os.path.join(saved_feature_dir, 'img{}.png'.format(i)))
             else:
                 if fpn:
                     pred_strong, _ = model(input_data, inference=True)

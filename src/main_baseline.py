@@ -17,7 +17,7 @@ from torch import nn
 
 from data.dataload import ENA_Dataset, SYN_Dataset, ENA_Dataset_unlabeled, ConcatDataset
 from data.Transforms import get_transforms
-import data.config as cfg
+import data.config_baseline as cfg
 from sklearn.model_selection import train_test_split
 
 
@@ -436,8 +436,8 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
             # weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
         else:
             # weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
-            weak_class_loss += class_criterion(weak_pred, target_weak)
-
+            # weak_class_loss += class_criterion(weak_pred, target_weak)
+            pass
 
         if ISP:
             # SCT
@@ -646,7 +646,7 @@ if __name__ == '__main__':
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 1
+    start_epoch = 0
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -788,9 +788,9 @@ if __name__ == '__main__':
 
     if stage == 'adaptation':
         # if f_args.level == 'frame':
-        # discriminator = Frame_Discriminator(**discriminator_kwargs)
+        discriminator = Frame_Discriminator(**discriminator_kwargs)
         # elif f_args.level == 'clip':
-        discriminator = Clip_Discriminator(**discriminator_kwargs)
+        # discriminator = Clip_Discriminator(**discriminator_kwargs)
         domain_adv  = ConditionalDomainAdversarialLoss(discriminator, entropy_conditioning=False,
         num_classes=20, features_dim=256*313, randomized=True,
         randomized_dim=3130)
@@ -855,20 +855,20 @@ if __name__ == '__main__':
         for param in predictor_ema.parameters():
             param.detach_()
 
-    optim_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    optim_d_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    # optim_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
-    # optim_d_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
-    # optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    # optim_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    # optim_d_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    # optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    optim_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    optim_d_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
 
-    optim = torch.optim.SGD(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
+    optim = torch.optim.Adam(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
     # optim = torch.optim.SGD(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
+    optim_crnn = torch.optim.Adam(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
     # optim_crnn = torch.optim.Adam(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
-    optim_crnn = torch.optim.SGD(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
     if stage == 'adaptation':
-        optim_d = torch.optim.SGD(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
-        # optim_d = torch.optim.Adam(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
+        # optim_d = torch.optim.SGD(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
+        optim_d = torch.optim.Adam(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
         
         if start_epoch > 1 and start_epoch != 51:
             optim.load_state_dict(expe_state['optimizer']['state_dict'])

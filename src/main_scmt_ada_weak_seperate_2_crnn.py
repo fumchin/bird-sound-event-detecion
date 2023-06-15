@@ -25,7 +25,7 @@ from sklearn.model_selection import train_test_split
 # from data_utils.DataLoad import DataLoadDf, ConcatDataset, MultiStreamBatchSampler
 from TestModel import _load_crnn
 from evaluation_measures import get_predictions, psds_score, compute_psds_from_operating_points, compute_metrics, get_f_measure_by_class
-from models.CRNN_GRL import CRNN_fpn, CRNN, Predictor, Frame_Discriminator, Clip_Discriminator
+from models.CRNN_GRL import CRNN_fpn, CRNN, CRNN_pred, Predictor, Predictor_2, Frame_Discriminator, Clip_Discriminator
 # from DA.cdan import ConditionalDomainAdversarialLoss
 # from DA.dan import ConditionalDomainAdversarialLoss
 from DA.cdan_frame import ConditionalDomainAdversarialLoss
@@ -325,19 +325,21 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
             # syn_g = syn_strong_pred.reshape(cfg.batch_size, -1)
             # g = strong_pred.reshape(cfg.batch_size, -1)
 
-            # syn_d_input_feature = syn_d_input.reshape(cfg.batch_size, -1)
-            # d_input_feature = d_input.reshape(cfg.batch_size, -1)
+            syn_d_input_feature = syn_d_input.reshape(cfg.batch_size, -1)
+            d_input_feature = d_input.reshape(cfg.batch_size, -1)
 
-            domain_loss = discriminator(syn_strong_pred, syn_d_input, strong_pred, d_input)
+            domain_loss = discriminator(syn_weak_pred, syn_d_input_feature, weak_pred, d_input_feature)
             # domain_loss = discriminator(syn_strong_pred_g, syn_d_input_feature, strong_pred_g, d_input_feature)
             domain_loss.backward()
             optimizer_crnn.step()
             optimizer_d.step()
 
         syn_encoded_x, syn_d_input = model(syn_batch_input)
+        # syn_encoded_x = syn_encoded_x.unsqueeze(dim=1)
         syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
 
         encoded_x, d_input = model(batch_input)
+        # encoded_x = encoded_x.unsqueeze(dim=1)
         strong_pred, weak_pred = predictor(encoded_x)
 
         
@@ -646,7 +648,7 @@ if __name__ == '__main__':
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 1
+    start_epoch = 0
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -668,6 +670,21 @@ if __name__ == '__main__':
                    "nb_filters": [16,  32,  64,  128,  128, 128, 128],
                    "pooling": [[2, 2], [2, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2]]}
     
+    # crnn_predictor_kwargs = {"n_in_channel": n_channel, "nclass": len(cfg.bird_list), "attention": True, "n_RNN_cell": 10,
+    #                "n_layers_RNN": 2,
+    #                "activation": "glu",
+    #                "dropout": 0.5,
+    #                "kernel_size": n_layers * [3], "padding": n_layers * [(1,1)], "stride": n_layers * [1],
+    #                "nb_filters": [16,  32,  64,  128,  64, 32, 20],
+    #                "pooling": [[1, 2], [1, 2], [1, 4], [1, 2], [1, 2], [1, 2], [1, 2]]}
+    pred_n_layers = 5
+    crnn_predictor_kwargs = {"n_in_channel": n_channel, "nclass": len(cfg.bird_list), "attention": True, "n_RNN_cell": 10,
+                   "n_layers_RNN": 2,
+                   "activation": "glu",
+                   "dropout": 0.5,
+                   "kernel_size": [3, 3, 3, (3,8), (3, 8)], "padding": n_layers * [(1,0)], "stride": pred_n_layers * [1],
+                   "nb_filters": [16,  32,  64,  32, 1],
+                   "pooling": [[1, 1], [1, 2], [1, 2], [1, 2], [1, 1]]}
     discriminator_kwargs = {"input_dim": 8192, "dropout": 0.5} # weak cdan
     # discriminator_kwargs = {"input_dim": 80128, "dropout": 0.5} # basic dan
     predictor_kwargs = {"nclass":len(cfg.bird_list), "attention":True, "n_RNN_cell":128}
@@ -787,10 +804,10 @@ if __name__ == '__main__':
     
 
     if stage == 'adaptation':
-        # if f_args.level == 'frame':
-        # discriminator = Frame_Discriminator(**discriminator_kwargs)
-        # elif f_args.level == 'clip':
-        discriminator = Clip_Discriminator(**discriminator_kwargs)
+        if f_args.level == 'frame':
+            discriminator = Frame_Discriminator(**discriminator_kwargs)
+        elif f_args.level == 'clip':
+            discriminator = Clip_Discriminator(**discriminator_kwargs)
         domain_adv  = ConditionalDomainAdversarialLoss(discriminator, entropy_conditioning=False,
         num_classes=20, features_dim=256*313, randomized=True,
         randomized_dim=3130)
@@ -798,7 +815,8 @@ if __name__ == '__main__':
         discriminator = None
         domain_adv = None
 
-    predictor = Predictor(**predictor_kwargs)
+    predictor = Predictor_2(**predictor_kwargs)
+    # predictor = CRNN_pred(**crnn_predictor_kwargs)
     
     if meanteacher:
         if f_args.use_fpn:
@@ -855,16 +873,15 @@ if __name__ == '__main__':
         for param in predictor_ema.parameters():
             param.detach_()
 
-    optim_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    # optim_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
     optim_d_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
     optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    # optim_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    optim_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
     # optim_d_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
     # optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
 
-    optim = torch.optim.SGD(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
+    optim = torch.optim.Adam(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
     # optim = torch.optim.SGD(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
-    # optim_crnn = torch.optim.Adam(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
     optim_crnn = torch.optim.SGD(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
     if stage == 'adaptation':
         optim_d = torch.optim.SGD(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
@@ -1012,7 +1029,11 @@ if __name__ == '__main__':
         logger.info("\n ### Valid synthetic metric ### \n")
         saved_path_list = [os.path.join("./stored_data", model_name, "predictions", "result.csv")]
         # real_dataset = torch.utils.data.ConcatDataset([real_unlabeled_dataset, real_weak_dataset])
-        predictions, valid_synth, durations_synth = get_predictions(crnn, syn_dataloader, many_hot_encoder.decode_strong, pooling_time_ratio,
+        if f_args.use_fpn: 
+            predictions, valid_synth, durations_synth = get_predictions(crnn, syn_dataloader, many_hot_encoder.decode_strong, pooling_time_ratio,
+                                      median_window=median_window, save_predictions=saved_path_list, predictor=predictor, fpn=True)
+        else:
+            predictions, valid_synth, durations_synth = get_predictions(crnn, syn_dataloader, many_hot_encoder.decode_strong, pooling_time_ratio,
                                       median_window=median_window, save_predictions=saved_path_list, predictor=predictor)
         # Validation with synthetic data (dropping feature_filename for psds)
         # valid_synth = dfs["valid_synthetic"].drop("feature_filename", axis=1)

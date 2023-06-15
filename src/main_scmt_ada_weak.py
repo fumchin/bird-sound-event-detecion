@@ -28,7 +28,7 @@ from evaluation_measures import get_predictions, psds_score, compute_psds_from_o
 from models.CRNN_GRL import CRNN_fpn, CRNN, Predictor, Frame_Discriminator, Clip_Discriminator
 # from DA.cdan import ConditionalDomainAdversarialLoss
 # from DA.dan import ConditionalDomainAdversarialLoss
-from DA.cdan import ConditionalDomainAdversarialLoss
+from DA.cdan_frame import ConditionalDomainAdversarialLoss
 
 from utilities import ramps
 from utilities.Logger import create_logger
@@ -332,17 +332,17 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
             syn_d_input_feature = syn_d_input.reshape(cfg.batch_size, -1)
             d_input_feature = d_input.reshape(cfg.batch_size, -1)
 
-            domain_loss = discriminator(syn_weak_pred, syn_d_input_feature, weak_pred, d_input_feature)
+            domain_loss = discriminator(syn_strong_pred, syn_d_input, strong_pred, d_input)
             # domain_loss = discriminator(syn_strong_pred_g, syn_d_input_feature, strong_pred_g, d_input_feature)
             # domain_loss.backward()
             # optimizer_crnn.step()
             # optimizer_d.step()
 
-        # syn_encoded_x, syn_d_input = model(syn_batch_input)
-        # syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
+        syn_encoded_x, syn_d_input = model(syn_batch_input)
+        syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
 
-        # encoded_x, d_input = model(batch_input)
-        # strong_pred, weak_pred = predictor(encoded_x)
+        encoded_x, d_input = model(batch_input)
+        strong_pred, weak_pred = predictor(encoded_x)
 
             
         if ema_model != None:
@@ -642,7 +642,7 @@ if __name__ == '__main__':
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 0
+    start_epoch = 1
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -783,10 +783,10 @@ if __name__ == '__main__':
     
 
     if stage == 'adaptation':
-        if f_args.level == 'frame':
-            discriminator = Frame_Discriminator(**discriminator_kwargs)
-        elif f_args.level == 'clip':
-            discriminator = Clip_Discriminator(**discriminator_kwargs)
+        # if f_args.level == 'frame':
+        # discriminator = Frame_Discriminator(**discriminator_kwargs)
+        # elif f_args.level == 'clip':
+        discriminator = Clip_Discriminator(**discriminator_kwargs)
         domain_adv  = ConditionalDomainAdversarialLoss(discriminator, entropy_conditioning=False,
         num_classes=20, features_dim=256*313, randomized=True,
         randomized_dim=8192)
@@ -851,19 +851,19 @@ if __name__ == '__main__':
         for param in predictor_ema.parameters():
             param.detach_()
 
-    # optim_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    # optim_d_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    optim_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
-    optim_d_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
-    # optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    optim_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    optim_d_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    # optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    # optim_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    # optim_d_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
 
-    optim = torch.optim.Adam(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
-    # optim = torch.optim.SGD(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
-    optim_crnn = torch.optim.SGD(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
+    # optim = torch.optim.Adam(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
+    optim = torch.optim.SGD(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
+    optim_crnn = torch.optim.Adam(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
     if stage == 'adaptation':
-        # optim_d = torch.optim.SGD(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
-        optim_d = torch.optim.Adam(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
+        optim_d = torch.optim.SGD(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
+        # optim_d = torch.optim.Adam(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
         
         if start_epoch > 1 and start_epoch != 51:
             optim.load_state_dict(expe_state['optimizer']['state_dict'])

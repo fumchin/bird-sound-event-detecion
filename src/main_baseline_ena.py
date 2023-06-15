@@ -17,7 +17,7 @@ from torch import nn
 
 from data.dataload import ENA_Dataset, SYN_Dataset, ENA_Dataset_unlabeled, ConcatDataset
 from data.Transforms import get_transforms
-import data.config as cfg
+import data.config_baseline_ena as cfg
 from sklearn.model_selection import train_test_split
 
 
@@ -194,7 +194,7 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
     unlabeled_dataloader_iterator = iter(train_unlabeled_loader)
     weak_dataloader_iterator = iter(train_weak_loader)
     
-    for i, data_syn in enumerate(syn_loader):
+    for i, data_syn in enumerate(unlabeled_dataloader_iterator):
 
         try:
             data_unlabeled = next(unlabeled_dataloader_iterator)
@@ -208,22 +208,23 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
             weak_dataloader_iterator = iter(train_weak_loader)
             data_weak = next(weak_dataloader_iterator)
 
-        ((unlabeled_batch_input, unlabeled_ema_batch_input), target_pl), filename = data_unlabeled
+        ((unlabeled_batch_input, unlabeled_ema_batch_input), target_2), filename = data_unlabeled
 
         ((weak_batch_input, weak_ema_batch_input), target), filename = data_weak
         target_weak = target.max(-2)[0]
-
+        target_weak_2 = target_2.max(-2)[0]
         ((syn_batch_input, syn_ema_batch_input), syn_target), syn_filename = data_syn
         
 
-        if (unlabeled_batch_input.shape[0] != syn_batch_input.shape[0]//2):
-            continue
-        if (weak_batch_input.shape[0] != syn_batch_input.shape[0]//2):
-            continue
+        # if (unlabeled_batch_input.shape[0] != syn_batch_input.shape[0]//2):
+        #     continue
+        # if (weak_batch_input.shape[0] != syn_batch_input.shape[0]//2):
+            # continue
 
         batch_input = torch.cat((weak_batch_input, unlabeled_batch_input), dim=0)
         ema_batch_input = torch.cat((weak_ema_batch_input, unlabeled_ema_batch_input), dim=0)
-        target_weak = torch.cat((target_weak, target_pl), dim=0)
+        target_weak = torch.cat((target_weak, target_weak_2), dim=0)
+        target = torch.cat((target, target_2), dim=0)
 
         # concate real data
         if ISP:
@@ -293,7 +294,7 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
         meters.update('lr', optimizer.param_groups[0]['lr'])
 
        
-        batch_input, ema_batch_input, target_weak = to_cuda_if_available(batch_input, ema_batch_input, target_weak)
+        batch_input, ema_batch_input, target_weak, target = to_cuda_if_available(batch_input, ema_batch_input, target_weak, target)
         syn_batch_input, syn_ema_batch_input, syn_target = to_cuda_if_available(syn_batch_input, syn_ema_batch_input, syn_target)
 
         
@@ -429,15 +430,16 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
         # FOR WEAK LABEL
         # ======================================================================================================
         syn_target_weak = syn_target.max(-2)[0]  # Take the max in the time axis
-        weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
+        # weak_class_loss = class_criterion(weak_pred, target_weak) + class_criterion(syn_weak_pred, syn_target_weak)
+        weak_class_loss = class_criterion(weak_pred, target_weak)
         weak_index = target_weak.shape[0] // 2
         if ema_model is not None:
             weak_class_loss += class_criterion(weak_pred, target_weak)
             # weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
         else:
             # weak_class_loss += class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
-            weak_class_loss += class_criterion(weak_pred, target_weak)
-
+            # weak_class_loss += class_criterion(weak_pred, target_weak)
+            pass
 
         if ISP:
             # SCT
@@ -471,7 +473,8 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
 
         # Strong BCE loss
         # strong_class_loss = class_criterion(strong_pred[mask_strong], target[mask_strong])
-        strong_class_loss = class_criterion(syn_strong_pred, syn_target)
+        # strong_class_loss = class_criterion(strong_pred, target) + class_criterion(syn_strong_pred, syn_target)
+        strong_class_loss = class_criterion(strong_pred, target)
         meters.update('Strong loss', strong_class_loss.item())
 
         if ISP:
@@ -646,7 +649,7 @@ if __name__ == '__main__':
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 1
+    start_epoch = 0
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -712,9 +715,10 @@ if __name__ == '__main__':
     transforms_syn = get_transforms(cfg.max_frames, None, add_axis_conv,
                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     
-
-    real_unlabeled_dataset = ENA_Dataset_unlabeled(preprocess_dir=cfg.train_unlabeled_feature_dir, encod_func=weak_encod_func, transform=transforms_real, compute_log=True)
+    real_unlabeled_dataset = ENA_Dataset(preprocess_dir=cfg.train_unlabeled_feature_dir, encod_func=encod_func, transform=transforms_real, compute_log=True)
+    # real_unlabeled_dataset = ENA_Dataset_unlabeled(preprocess_dir=cfg.train_unlabeled_feature_dir, encod_func=weak_encod_func, transform=transforms_real, compute_log=True)
     real_weak_dataset = ENA_Dataset(preprocess_dir=cfg.train_weak_feature_dir, encod_func=encod_func, transform=transforms_real, compute_log=True)
+    # real_weak_dataset = ENA_Dataset_unlabeled(preprocess_dir=cfg.train_weak_feature_dir, encod_func=encod_func, transform=transforms_real, compute_log=True)
     syn_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_syn, compute_log=True)
 
     scaler_val = Scaler()
@@ -788,9 +792,9 @@ if __name__ == '__main__':
 
     if stage == 'adaptation':
         # if f_args.level == 'frame':
-        # discriminator = Frame_Discriminator(**discriminator_kwargs)
+        discriminator = Frame_Discriminator(**discriminator_kwargs)
         # elif f_args.level == 'clip':
-        discriminator = Clip_Discriminator(**discriminator_kwargs)
+        # discriminator = Clip_Discriminator(**discriminator_kwargs)
         domain_adv  = ConditionalDomainAdversarialLoss(discriminator, entropy_conditioning=False,
         num_classes=20, features_dim=256*313, randomized=True,
         randomized_dim=3130)
@@ -855,19 +859,19 @@ if __name__ == '__main__':
         for param in predictor_ema.parameters():
             param.detach_()
 
-    optim_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    optim_d_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    # optim_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
-    # optim_d_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
-    # optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    # optim_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    # optim_d_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    # optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
+    optim_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    optim_d_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
+    optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
 
-    optim = torch.optim.SGD(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
+    optim = torch.optim.Adam(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
     # optim = torch.optim.SGD(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
     # optim_crnn = torch.optim.Adam(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
-    optim_crnn = torch.optim.SGD(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
+    optim_crnn = torch.optim.Adam(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
     if stage == 'adaptation':
-        optim_d = torch.optim.SGD(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
+        optim_d = torch.optim.Adam(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
         # optim_d = torch.optim.Adam(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
         
         if start_epoch > 1 and start_epoch != 51:

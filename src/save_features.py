@@ -177,12 +177,12 @@ if __name__ == '__main__':
     f_args = parser.parse_args()
     # Get variables from f_args
     # median_window, use_fpn, use_predictor = get_variables(f_args)
-    test_model_name = "CRNN_fpn_3000_scmt_stage2"
+    test_model_name = "0523_Quarter_3000_02_015_CRNN_fpn_mt_resPL_cdan_clip_stage2_seperate_SGD_lr_test"
 
     median_window = f_args.median_window
     use_fpn = f_args.use_fpn
     use_predictor = f_args.use_predictor
-    model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_epoch_0")
+    model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_best")
     sf = f_args.saved_feature_dir
     if sf:
         saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "embedded_features")
@@ -201,12 +201,12 @@ if __name__ == '__main__':
     
     scaler = Scaler()
     transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
-    train_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
-    syn_scaler_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
-    scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
-    transforms = get_transforms(cfg.max_frames, scaler, add_axis_conv,
+    # train_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.train_unlabeled_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    # syn_scaler_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    # scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
+    transforms = get_transforms(cfg.max_frames, None, add_axis_conv,
                                       noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    real_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
+    real_dataset = ENA_Dataset(preprocess_dir=cfg.train_unlabeled_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
     syn_dataset = ENA_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
     
     
@@ -214,7 +214,7 @@ if __name__ == '__main__':
     transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
     val_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
     scaler_val.calculate_scaler(val_scaler_dataset) 
-    transforms_valid = get_transforms(cfg.max_frames, scaler_val, add_axis_conv,
+    transforms_valid = get_transforms(cfg.max_frames, None, add_axis_conv,
                                       noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_valid, compute_log=True)
     

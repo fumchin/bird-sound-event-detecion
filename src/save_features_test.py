@@ -15,7 +15,7 @@ import pandas as pd
 #     compute_psds_from_operating_points, compute_metrics, get_f_measure_by_class
 from utilities.utils import to_cuda_if_available, generate_tsv_wav_durations, meta_path_to_audio_dir
 from evaluation_measures import get_predictions, psds_score, compute_psds_from_operating_points, compute_metrics, get_f_measure_by_class
-from data.dataload import SYN_Dataset, ENA_Dataset
+from data.dataload import SYN_Dataset, ENA_Dataset, ConcatDataset
 from sklearn.model_selection import train_test_split
 from utilities.ManyHotEncoder import ManyHotEncoder
 from data.Transforms import get_transforms
@@ -26,6 +26,23 @@ import data.config as cfg
 import pdb
 import collections
 import os
+import os, os.path
+import pdb
+import os
+import time
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import librosa.feature.inverse
+
+from scipy.io.wavfile import write
+from sklearn.decomposition import PCA, KernelPCA, FastICA
+from sklearn.manifold import Isomap
+from sklearn.manifold import TSNE
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report, silhouette_score
 
 logger = create_logger(__name__)
 torch.manual_seed(2023)
@@ -78,14 +95,6 @@ def _load_state_vars(state, median_win=None, use_fpn=False, use_predictor=False)
     many_hot_encoder = ManyHotEncoder.load_state_dict(state["many_hot_encoder"])
     # scaler = _load_scaler(state)
     crnn = _load_crnn(state, use_fpn=use_fpn)
-    # transforms_valid = get_transforms(cfg.max_frames, scaler=scaler, add_axis=0)
-    
-    # strong_dataload = DataLoadDf(pred_df, many_hot_encoder.encode_strong_df, transforms_valid, return_indexes=True)
-    # strong_dataloader_ind = DataLoader(strong_dataload, batch_size=cfg.batch_size, drop_last=False, shuffle=False)
-
-    # # weak dataloader
-    # weak_dataload = DataLoadDf(pred_df, many_hot_encoder.encode_weak, transforms_valid, return_indexes=True)
-    # weak_dataloader_ind = DataLoader(weak_dataload, batch_size=cfg.batch_size, drop_last=False, shuffle=False)
 
     pooling_time_ratio = state["pooling_time_ratio"]
     many_hot_encoder = ManyHotEncoder.load_state_dict(state["many_hot_encoder"])
@@ -149,6 +158,60 @@ def get_variables(args):
     return model_pth, median_win, gt_audio_pth, groundtruth, meta_dur_df, use_fpn, use_predictor
 
 
+
+
+def visualization(ADA_synth_feature, ADA_real_feature, ADA_path=None, No_ADA_path=None, sample_num=1000):
+    print("start visualization")
+
+    ADA_tsne_path = os.path.join(ADA_path, 'tsne(frame).npy')
+
+    # if not os.path.exists(ADA_tsne_path):
+    # synth_sample_index = np.random.choice(ADA_synth_feature.shape[0], sample_num)
+    real_sample_index = np.random.choice(ADA_real_feature.shape[0], sample_num)
+
+    # ADA_synth_feature_sample = ADA_synth_feature
+    ADA_real_feature_sample = ADA_real_feature
+   
+    # ADA_feature = np.concatenate((ADA_synth_feature_sample, ADA_real_feature_sample), axis=0)
+    ADA_feature = ADA_real_feature_sample
+    ADA_feature = TSNE(n_components=3, perplexity=1).fit_transform(ADA_feature)
+  
+    np.save(ADA_tsne_path, ADA_feature)
+    # print(ADA_recon.shape)
+    ADA_feature = np.load(ADA_tsne_path)
+
+    # ADA_synth_feature_sample = ADA_feature[:int(ADA_synth_feature_sample.shape[0])]
+    # ADA_real_feature_sample = ADA_feature[int(ADA_synth_feature_sample.shape[0]):]
+
+    time1_feature = ADA_feature[0]
+    time2_feature = ADA_feature[1]
+    time3_feature = ADA_feature[2]
+    # ADA_synth_label = ['synth'] * int(ADA_synth_feature_sample.shape[0])
+    # ADA_real_label = ['real'] * int(ADA_real_feature_sample.shape[0])
+    time1_label = ['time1']
+    time2_label = ['time2']
+    time3_label = ['time3']
+    ADA_label = np.array(time1_label + time2_label + time3_label)
+    # s_score = silhouette_score(ADA_feature, ADA_label)
+    # print('silhouette score: ', s_score)
+    plt.figure()
+    # plt.scatter(ADA_synth_feature_sample[:,0], ADA_synth_feature_sample[:,1], alpha=0.6, s=10, marker='x', label='synth')
+    #plt.scatter(df['x'], df['y'], alpha=0.6, s=10, c=df['label'], label='synth')
+    # sns.scatterplot(x="x", y="y", hue="label", palette="deep", linewidth=0, data=df_real, s=10)
+    # plt.scatter(ADA_synth_feature_sample[:,0], ADA_synth_feature_sample[:,1], alpha=0.6, s=10, marker='x', label='synth')
+    # plt.scatter(ADA_real_feature_sample[:,0], ADA_real_feature_sample[:,1], alpha=0.3, s=10, c='r', label='real')
+    plt.scatter(time1_feature[:,0], time1_feature[:,1], alpha=0.6, s=10, marker='x', label='time1')
+    plt.scatter(time2_feature[:,0], time2_feature[:,1], alpha=0.3, s=10, c='r', label='time2')
+    plt.scatter(time3_feature[:,0], time3_feature[:,1], alpha=0.3, s=10, c='g', label='time3')
+    # transfer back to audio
+    plt.legend()
+    # plt.title('syn vs real')
+    # plt.xlim(-60, 80)
+    # plt.ylim(-90, 90)
+    plt.axis('off')
+    plt.savefig(os.path.join(ADA_path, 'syn vs real(frame).png'))
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("-m", '--model_path', type=str, required=None,
@@ -185,31 +248,16 @@ if __name__ == '__main__':
     f_args = parser.parse_args()
     # Get variables from f_args
     # median_window, use_fpn, use_predictor = get_variables(f_args)
+    test_model_name = "0505_Quarter_3000_02_015_CRNN_fpn_scmt"
+
     median_window = f_args.median_window
     use_fpn = f_args.use_fpn
     use_predictor = f_args.use_predictor
-    test_model_name = "0523_Quarter_3000_02_015_CRNN_fpn_scmt_resPL_clip_stage2_SGD"
     model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_best")
-    # sf = f_args.sf
-    # if sf:
-    #     saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", cfg.test_model_name, "embedded_features")
+    sf = f_args.saved_feature_dir
+    if sf:
+        saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "mix")
         
-    # if f_args.groundtruth_tsv.split('/')[-1] == 'validation.tsv':
-    #     data_type = 'strong'
-    # elif f_args.groundtruth_tsv.split('/')[-1]== 'weak.tsv':
-    #     data_type = 'weak'
-    # elif f_args.groundtruth_tsv.split('/')[-1] == 'soundscapes.tsv':
-    #     data_type = 'synth'
-    # elif f_args.groundtruth_tsv.split('/')[-1] == 'output.tsv':
-    #     data_type = 'synth'
-    # elif f_args.groundtruth_tsv.split('/')[-1] == 'validation_single.tsv':
-    #     data_type = 'strong'
-    # elif f_args.groundtruth_tsv.split('/')[-1] == 'soundscapes_single.tsv':
-    #     data_type = 'synth'
-
-    # saved_feature_dir = os.path.join(f_args.saved_feature_dir, data_type)
-    # if not os.path.exists(saved_feature_dir):
-    #     os.makedirs(saved_feature_dir, exist_ok=True)
     
 
     # Model
@@ -222,13 +270,25 @@ if __name__ == '__main__':
     # scaler = _load_scaler(state)
     # transforms = get_transforms(cfg.max_frames, None, add_axis_conv, noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     
+    scaler = Scaler()
+    # transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
+    # train_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    # syn_scaler_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    # scaler.calculate_scaler(ConcatDataset([train_scaler_dataset, syn_scaler_dataset])) 
+    # transforms = get_transforms(cfg.max_frames, scaler, add_axis_conv,
+    #                                   noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
+    # real_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
+    # syn_dataset = ENA_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
+    
+    
     scaler_val = Scaler()
-    transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
-    val_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
-    scaler_val.calculate_scaler(val_scaler_dataset) 
+    # transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
+    # val_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    # scaler_val.calculate_scaler(val_scaler_dataset) 
     transforms_valid = get_transforms(cfg.max_frames, None, add_axis_conv,
                                       noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_valid, compute_log=True)
+    val_test_dir = "/home/fumchin/data/bsed_20/dataset/SYN_test/preprocess_mix"
+    val_dataset = ENA_Dataset(preprocess_dir=val_test_dir, encod_func=encod_func, transform=transforms_valid, compute_log=True)
     
     
     # transforms = get_transforms(cfg.max_frames, None, add_axis_conv,
@@ -236,36 +296,27 @@ if __name__ == '__main__':
     # val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
     # train_data, val_data = train_test_split(dataset, random_state=cfg.dataset_random_seed, train_size=0.5)
     
-    val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
-    # real_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
-    # gt_df_feat = dataset.initialize_and_get_df(f_args.groundtruth_tsv, gt_audio_dir, nb_files=f_args.nb_files)
+    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False)
     params = _load_state_vars(expe_state, median_window, use_fpn, use_predictor)
 
     # Preds with only one value
-    if use_fpn:
-        # single_predictions = get_predictions(params["model"], val_dataloader,
-        #                                     params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
-        #                                     median_window=params["median_window"],
-        #                                     save_predictions=f_args.save_predictions_path,
-        #                                     predictor=params["predictor"], fpn=True, saved_feature_dir=None)
-        valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
-                                            params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
-                                            median_window=params["median_window"],
-                                            save_predictions=f_args.save_predictions_path,
-                                            predictor=params["predictor"], fpn=True, saved_feature_dir=None)
-    else:
-        valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
-                                            params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
-                                            median_window=params["median_window"],
-                                            save_predictions=f_args.save_predictions_path,
-                                            predictor=params["predictor"], saved_feature_dir=None)
-    ct_matrix, valid_real_f1, psds_real_f1 = compute_metrics(valid_predictions, validation_labels_df, durations_validation)
+    train_saved_feature_dir = os.path.join(saved_path, "train")
+    # syn_saved_feature_dir = os.path.join(saved_path, "syn")
+    # val_saved_feature_dir = os.path.join(saved_path, "val")
+
+    if not os.path.exists(train_saved_feature_dir):
+        os.makedirs(train_saved_feature_dir)
+
+    # if not os.path.exists(syn_saved_feature_dir):
+    #     os.makedirs(syn_saved_feature_dir)
     
-    ct_matrix_df = pd.DataFrame(ct_matrix, columns=(sorted(cfg.bird_list) + ["World"]), index=(sorted(cfg.bird_list) + ["World"]))
-    ct_matrix_df.to_csv(os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "confusion_matrix.csv"), float_format='%d')
-    # Evaluate audio tagging
-    # weak_metric = get_f_measure_by_class(params["model"], len(cfg.classes), params["weak_dataloader"], predictor=params["predictor"])
-    # print("Weak F1-score per class: \n {}".format(pd.DataFrame(weak_metric * 100, params["many_hot_encoder"].labels)))
-    # print("Weak F1-score macro averaged: {}".format(np.mean(weak_metric)))
-    # pdb.set_trace()
- 
+    # if not os.path.exists(val_saved_feature_dir):
+    #     os.makedirs(val_saved_feature_dir)
+
+    if use_fpn:
+        train_predictions, train_labels_df, train_durations_validation = get_predictions(params["model"], val_dataloader,
+                                            params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
+                                            median_window=params["median_window"],
+                                            save_predictions=os.path.join(train_saved_feature_dir, 'pred.csv'),
+                                            predictor=params["predictor"], fpn=True, saved_feature_dir=train_saved_feature_dir)
+        

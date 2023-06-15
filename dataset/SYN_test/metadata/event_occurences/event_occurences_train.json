@@ -1,0 +1,29 @@
+{
+    "AMRE": {
+        "proba": 0.5,
+        "co-occurences": {
+          "max_events": 1,
+          "mean_events": 1,
+          "classes": [
+            
+          ],
+          "probas": [
+            
+          ]
+          } 
+      },
+    "EATO": {
+      "proba": 0.5,
+      "co-occurences": {
+        "max_events": 1,
+        "mean_events": 1,
+        "classes": [
+          
+        ],
+        "probas": [
+          
+        ]
+        } 
+    }
+}
+  

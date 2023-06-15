@@ -7,7 +7,8 @@ import torch, torch.nn
 from torch.utils.data import DataLoader
 import numpy as np
 import pandas as pd
-
+from dcase_util.data import ProbabilityEncoder
+from audio_tagging_system_cnn import Net_resnet
 # from data_utils.DataLoad import DataLoadDf
 # from data_utils.Desed import DESED
 # # from evaluation_measures import compute_sed_eval_metrics, psds_score, get_predictions
@@ -72,53 +73,84 @@ def _load_scaler(state):
     return scaler
 
 
-def _load_state_vars(state, median_win=None, use_fpn=False, use_predictor=False):
+# def _load_state_vars(state, median_win=None, use_fpn=False, use_predictor=False):
+#     # pred_df = gtruth_df.copy()
+#     # Define dataloader
+#     many_hot_encoder = ManyHotEncoder.load_state_dict(state["many_hot_encoder"])
+#     # scaler = _load_scaler(state)
+#     crnn = _load_crnn(state, use_fpn=use_fpn)
+#     # transforms_valid = get_transforms(cfg.max_frames, scaler=scaler, add_axis=0)
+    
+#     # strong_dataload = DataLoadDf(pred_df, many_hot_encoder.encode_strong_df, transforms_valid, return_indexes=True)
+#     # strong_dataloader_ind = DataLoader(strong_dataload, batch_size=cfg.batch_size, drop_last=False, shuffle=False)
+
+#     # # weak dataloader
+#     # weak_dataload = DataLoadDf(pred_df, many_hot_encoder.encode_weak, transforms_valid, return_indexes=True)
+#     # weak_dataloader_ind = DataLoader(weak_dataload, batch_size=cfg.batch_size, drop_last=False, shuffle=False)
+
+#     pooling_time_ratio = state["pooling_time_ratio"]
+#     many_hot_encoder = ManyHotEncoder.load_state_dict(state["many_hot_encoder"])
+#     if median_win is None:
+#         median_win = state["median_window"]
+#     if use_predictor == False:
+#         return {
+#             "model": crnn,
+#             # "strong_dataloader": strong_dataloader_ind,
+#             # "weak_dataloader": weak_dataloader_ind,
+#             "pooling_time_ratio": pooling_time_ratio,
+#             "many_hot_encoder": many_hot_encoder,
+#             "median_window": median_win,
+#             "predictor": None
+#         }
+#     else:
+#         predictor_args = state["model_p"]["args"]
+#         predictor_kwargs = state["model_p"]["kwargs"]
+#         predictor = Predictor(**predictor_kwargs)
+#         predictor.load_state_dict(expe_state["model_p"]["state_dict"])
+#         predictor.eval()
+
+#         predictor = to_cuda_if_available(predictor)
+#         return {
+#             "model": crnn,
+#             # "strong_dataloader": strong_dataloader_ind,
+#             # "weak_dataloader": weak_dataloader_ind,
+#             "pooling_time_ratio": pooling_time_ratio,
+#             "many_hot_encoder": many_hot_encoder,
+#             "median_window": median_win,
+#             "predictor": predictor
+#         }
+
+def _load_state_vars(state, gtruth_df, median_win=None):
     # pred_df = gtruth_df.copy()
     # Define dataloader
     many_hot_encoder = ManyHotEncoder.load_state_dict(state["many_hot_encoder"])
     # scaler = _load_scaler(state)
-    crnn = _load_crnn(state, use_fpn=use_fpn)
-    # transforms_valid = get_transforms(cfg.max_frames, scaler=scaler, add_axis=0)
-    
+    # crnn = _load_crnn(state)
+    resnet = Net_resnet(pretrained=False)
+    resnet.load_state_dict(state["model"]["state_dict"])
+    resnet.eval()
+    resnet = to_cuda_if_available(resnet)
+    transforms_valid = get_transforms(cfg.max_frames, scaler=None, add_axis=0)
+
     # strong_dataload = DataLoadDf(pred_df, many_hot_encoder.encode_strong_df, transforms_valid, return_indexes=True)
-    # strong_dataloader_ind = DataLoader(strong_dataload, batch_size=cfg.batch_size, drop_last=False, shuffle=False)
+    # strong_dataloader_ind = DataLoader(strong_dataload, batch_size=cfg.batch_size, drop_last=False)
 
-    # # weak dataloader
+    # weak dataloader
     # weak_dataload = DataLoadDf(pred_df, many_hot_encoder.encode_weak, transforms_valid, return_indexes=True)
-    # weak_dataloader_ind = DataLoader(weak_dataload, batch_size=cfg.batch_size, drop_last=False, shuffle=False)
+    # weak_dataloader_ind = DataLoader(weak_dataload, batch_size=cfg.batch_size, drop_last=False)
 
-    pooling_time_ratio = state["pooling_time_ratio"]
+    # pooling_time_ratio = state["pooling_time_ratio"]
     many_hot_encoder = ManyHotEncoder.load_state_dict(state["many_hot_encoder"])
-    if median_win is None:
-        median_win = state["median_window"]
-    if use_predictor == False:
-        return {
-            "model": crnn,
-            # "strong_dataloader": strong_dataloader_ind,
-            # "weak_dataloader": weak_dataloader_ind,
-            "pooling_time_ratio": pooling_time_ratio,
-            "many_hot_encoder": many_hot_encoder,
-            "median_window": median_win,
-            "predictor": None
-        }
-    else:
-        predictor_args = state["model_p"]["args"]
-        predictor_kwargs = state["model_p"]["kwargs"]
-        predictor = Predictor(**predictor_kwargs)
-        predictor.load_state_dict(expe_state["model_p"]["state_dict"])
-        predictor.eval()
-
-        predictor = to_cuda_if_available(predictor)
-        return {
-            "model": crnn,
-            # "strong_dataloader": strong_dataloader_ind,
-            # "weak_dataloader": weak_dataloader_ind,
-            "pooling_time_ratio": pooling_time_ratio,
-            "many_hot_encoder": many_hot_encoder,
-            "median_window": median_win,
-            "predictor": predictor
-        }
-
+    # if median_win is None:
+    #     median_win = state["median_window"]
+    return {
+        "model": resnet,
+        # "strong_dataloader": strong_dataloader_ind,
+        # "weak_dataloader": weak_dataloader_ind,
+        # "pooling_time_ratio": pooling_time_ratio,
+        "many_hot_encoder": many_hot_encoder,
+        # "median_window": median_win
+    }
 
 def get_variables(args):
     model_pth = args.model_path
@@ -188,8 +220,9 @@ if __name__ == '__main__':
     median_window = f_args.median_window
     use_fpn = f_args.use_fpn
     use_predictor = f_args.use_predictor
-    test_model_name = "0523_Quarter_3000_02_015_CRNN_fpn_scmt_resPL_clip_stage2_SGD"
-    model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_best")
+    test_model_name = cfg.at_model_name
+    # test_model_name = "CRNN_fpn_3000_weak_test"
+    model_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "model", "baseline_epoch_102")
     # sf = f_args.sf
     # if sf:
     #     saved_path = os.path.join("/home/fumchin/data/bsed_20/src/stored_data", cfg.test_model_name, "embedded_features")
@@ -218,51 +251,86 @@ if __name__ == '__main__':
 
     many_hot_encoder = ManyHotEncoder(cfg.bird_list, n_frames=cfg.max_frames // cfg.pooling_time_ratio)
     encod_func = many_hot_encoder.encode_strong_df
-    # dataset = DESED(base_feature_dir=osp.join(cfg.workspace, "dataset", "features"), compute_log=False)
-    # scaler = _load_scaler(state)
-    # transforms = get_transforms(cfg.max_frames, None, add_axis_conv, noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
+
+
+    # transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
+    # train_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.train_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+    # syn_scaler_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
+
+
+    # scaler_args = []
+    # scaler = Scaler()
+
+    # scaler.calculate_scaler(train_scaler_dataset) 
+
+    transforms_real = get_transforms(cfg.max_frames, None, add_axis_conv,
+                            noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
+    transforms_syn = get_transforms(cfg.max_frames, None, add_axis_conv,
+                            noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
     
-    scaler_val = Scaler()
-    transforms_scaler = get_transforms(cfg.max_frames, add_axis=add_axis_conv)
-    val_scaler_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_scaler, compute_log=True)
-    scaler_val.calculate_scaler(val_scaler_dataset) 
-    transforms_valid = get_transforms(cfg.max_frames, None, add_axis_conv,
-                                      noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms_valid, compute_log=True)
+
+    real_dataset = ENA_Dataset(preprocess_dir=cfg.train_unlabeled_feature_dir, encod_func=encod_func, transform=transforms_real, compute_log=True)
+    syn_dataset = SYN_Dataset(preprocess_dir=cfg.synth_feature_dir, encod_func=encod_func, transform=transforms_syn, compute_log=True)
     
+
     
-    # transforms = get_transforms(cfg.max_frames, None, add_axis_conv,
-    #                             noise_dict_params={"mean": 0., "snr": cfg.noise_snr})
-    # val_dataset = ENA_Dataset(preprocess_dir=cfg.val_feature_dir, encod_func=encod_func, transform=transforms, compute_log=True)
-    # train_data, val_data = train_test_split(dataset, random_state=cfg.dataset_random_seed, train_size=0.5)
-    
-    val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
+    real_dataloader = DataLoader(real_dataset, batch_size=cfg.batch_size, shuffle=False)
+    # real_dataloader = DataLoader(real_dataset, batch_size=2, shuffle=False)
+    prediction_dfs = pd.DataFrame()
     # real_dataloader = DataLoader(train_data, batch_size=cfg.batch_size, shuffle=True)
     # gt_df_feat = dataset.initialize_and_get_df(f_args.groundtruth_tsv, gt_audio_dir, nb_files=f_args.nb_files)
-    params = _load_state_vars(expe_state, median_window, use_fpn, use_predictor)
+    # params = _load_state_vars(expe_state, median_window, use_fpn, use_predictor)
+    params = _load_state_vars(expe_state, None,  median_window)
 
+    model = params["model"]
+    # predictor=params["predictor"]
+    decoder = params["many_hot_encoder"].decode_weak
+    # for counter, ((batch_x, y), indexes) in enumerate(real_dataset):
+    for i, (((input_data, ema_input_data), target), selected_file_path) in enumerate(real_dataloader):
+        # indexes = indexes.numpy()
+        input_data = to_cuda_if_available(input_data)
+        pred_weak = model(input_data)
+        # _, pred_weak = predictor(encoded_x)
+        pred_weak = pred_weak.cpu().data.numpy()
+
+        # Used only with a model predicting only strong outputs
+        if len(pred_weak.shape) == 3:
+            # average data to have weak labels
+            pred_weak = np.max(pred_weak, axis=1)
+
+        binarization_type = 'global_threshold'
+        thresh = 0.5
+
+        for j, pred_weak_it in enumerate(pred_weak):
+            pred_weak_m = ProbabilityEncoder().binarization(pred_weak_it,
+                                                                binarization_type=binarization_type,
+                                                                threshold=thresh,
+                                                                time_axis=0
+                                                                )
+            pred = [','.join(decoder(pred_weak_m))]
+            if pred[0] != "":
+                pred = pd.DataFrame(pred, columns=["event_labels"])
+                pred["filename"] = selected_file_path[j]
+                pred = pred[["filename", "event_labels"]]
+                prediction_dfs = prediction_dfs.append(pred, ignore_index=True)
+    prediction_dfs.to_csv('unlabel_in_domain_pseudo_weak_resNet.tsv', index=False, sep="\t")
     # Preds with only one value
-    if use_fpn:
-        # single_predictions = get_predictions(params["model"], val_dataloader,
-        #                                     params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
-        #                                     median_window=params["median_window"],
-        #                                     save_predictions=f_args.save_predictions_path,
-        #                                     predictor=params["predictor"], fpn=True, saved_feature_dir=None)
-        valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
-                                            params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
-                                            median_window=params["median_window"],
-                                            save_predictions=f_args.save_predictions_path,
-                                            predictor=params["predictor"], fpn=True, saved_feature_dir=None)
-    else:
-        valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
-                                            params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
-                                            median_window=params["median_window"],
-                                            save_predictions=f_args.save_predictions_path,
-                                            predictor=params["predictor"], saved_feature_dir=None)
-    ct_matrix, valid_real_f1, psds_real_f1 = compute_metrics(valid_predictions, validation_labels_df, durations_validation)
+    # if use_fpn:
+    #     valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
+    #                                         params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
+    #                                         median_window=params["median_window"],
+    #                                         save_predictions=f_args.save_predictions_path,
+    #                                         predictor=params["predictor"], fpn=True, saved_feature_dir=None)
+    # else:
+    #     valid_predictions, validation_labels_df, durations_validation = get_predictions(params["model"], val_dataloader,
+    #                                         params["many_hot_encoder"].decode_strong, params["pooling_time_ratio"],
+    #                                         median_window=params["median_window"],
+    #                                         save_predictions=f_args.save_predictions_path,
+    #                                         predictor=params["predictor"], saved_feature_dir=None)
+    # ct_matrix, valid_real_f1, psds_real_f1 = compute_metrics(valid_predictions, validation_labels_df, durations_validation)
     
-    ct_matrix_df = pd.DataFrame(ct_matrix, columns=(sorted(cfg.bird_list) + ["World"]), index=(sorted(cfg.bird_list) + ["World"]))
-    ct_matrix_df.to_csv(os.path.join("/home/fumchin/data/bsed_20/src/stored_data", test_model_name, "confusion_matrix.csv"), float_format='%d')
+    # ct_matrix_df = pd.DataFrame(ct_matrix, columns=(sorted(cfg.bird_list) + ["World"]), index=(sorted(cfg.bird_list) + ["World"]))
+    # ct_matrix_df.to_csv(os.path.join("/home/fumchin/data/bsed_20/src/stored_data", cfg.test_model_name, "confusion_matrix.csv"), float_format='%d')
     # Evaluate audio tagging
     # weak_metric = get_f_measure_by_class(params["model"], len(cfg.classes), params["weak_dataloader"], predictor=params["predictor"])
     # print("Weak F1-score per class: \n {}".format(pd.DataFrame(weak_metric * 100, params["many_hot_encoder"].labels)))

@@ -89,18 +89,34 @@ class ConditionalDomainAdversarialLoss(nn.Module):
     def forward(self, g_s: torch.Tensor, f_s: torch.Tensor, g_t: torch.Tensor, f_t: torch.Tensor) -> torch.Tensor:
         f = torch.cat((f_s, f_t), dim=0)
         g = torch.cat((g_s, g_t), dim=0)
-        g = F.softmax(g, dim=1).detach()
-        h = self.grl(self.map(f, g))
+        g, _ = torch.max(g, dim=2, keepdim=True)
+        g = g.repeat(1, 1, 256)
+        # h = self.grl(torch.mul(f, g))
+        h = self.grl(f)
         d = self.domain_discriminator(h)
+        d = torch.squeeze(d)
+        #clip
         d_label = torch.cat((
-            torch.ones((g_s.size(0), 1)).to(g_s.device),
-            torch.zeros((g_t.size(0), 1)).to(g_t.device),
+            torch.full((g_s.size(0), 1), 1.0).to(g_s.device),
+            torch.full((g_t.size(0), 1), 0.0).to(g_t.device),
         ))
+        d_label = torch.squeeze(d_label)
+        #frame
+        # d_label = torch.cat((
+        #     torch.ones((g_s.size(0), 313)).to(g_s.device),
+        #     torch.zeros((g_t.size(0), 313)).to(g_t.device),
+        # ))
+        # d_label = torch.cat((
+        #     torch.full((g_s.size(0), 313), 0.7).to(g_s.device),
+        #     torch.full((g_t.size(0), 313), 0.3).to(g_t.device),
+        # ))
         weight = 1.0 + torch.exp(-entropy(g))
         batch_size = f.size(0)
         weight = weight / torch.sum(weight) * batch_size
-        self.domain_discriminator_accuracy = binary_accuracy(d, d_label)
-        return self.bce(d, d_label, weight.view_as(d))
+        # d = d.view(-1)
+        # d_label = d_label.view(-1)
+        # self.domain_discriminator_accuracy = binary_accuracy(d, d_label)
+        return self.bce(d, d_label, 1)
 
 
 class RandomizedMultiLinearMap(nn.Module):

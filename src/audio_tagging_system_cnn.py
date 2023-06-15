@@ -54,7 +54,7 @@ class Net_resnet(nn.Module):
         # self.resnet = Resnet.resnet18(pretrained=pretrained)
         # convert last layer of resnet to 10 classes
         num_ftrs = self.resnet.fc.in_features
-        self.resnet.fc = nn.Linear(num_ftrs, len(cfg.classes))
+        self.resnet.fc = nn.Linear(num_ftrs, len(cfg.bird_list))
         # convert convolution to single channel
         self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.sigmoid = nn.Sigmoid()
@@ -339,106 +339,20 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
         # output_dim = 4096
         
         batch_size = cfg.batch_size
-  
-        if discriminator is not None:
 
-            syn_encoded_x, syn_d_input = model(syn_batch_input)
-            syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
 
-            encoded_x, d_input = model(batch_input)
-            strong_pred, weak_pred = predictor(encoded_x)
+        syn_weak_pred = model(syn_batch_input)
+        weak_pred = model(batch_input)
+        # syn_encoded_x, syn_d_input = model(syn_batch_input)
+        # syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
 
-            optimizer_crnn.zero_grad()
-            optimizer_d.zero_grad()
-            
-            # syn_g = syn_strong_pred.reshape(cfg.batch_size, -1)
-            # g = strong_pred.reshape(cfg.batch_size, -1)
-
-            syn_d_input_feature = syn_d_input.reshape(cfg.batch_size, -1)
-            d_input_feature = d_input.reshape(cfg.batch_size, -1)
-
-            domain_loss = discriminator(syn_weak_pred, syn_d_input_feature, weak_pred, d_input_feature)
-            # domain_loss = discriminator(syn_strong_pred_g, syn_d_input_feature, strong_pred_g, d_input_feature)
-            domain_loss.backward()
-            optimizer_crnn.step()
-            optimizer_d.step()
-
-        syn_encoded_x, syn_d_input = model(syn_batch_input)
-        syn_strong_pred, syn_weak_pred = predictor(syn_encoded_x)
-
-        encoded_x, d_input = model(batch_input)
-        strong_pred, weak_pred = predictor(encoded_x)
+        # encoded_x, d_input = model(batch_input)
+        # strong_pred, weak_pred = predictor(encoded_x)
 
             
-        if ema_model != None:
-            encoded_x_ema, _ = ema_model(ema_batch_input)
-            strong_pred_ema, weak_pred_ema = ema_predictor(encoded_x_ema)
-            strong_pred_ema = strong_pred_ema.detach()
-            weak_pred_ema = weak_pred_ema.detach()
-
-            if ISP:
-                
-                encoded_x_shift_ema, _ = ema_model(ema_batch_input_shift)
-                strong_pred_shift_ema, weak_pred_shift_ema = ema_predictor(encoded_x_shift_ema)
-                strong_pred_shift_ema = strong_pred_shift_ema.detach()
-                weak_pred_shift_ema = weak_pred_shift_ema.detach()
-
-                encoded_x_freq_shift_ema, _ = ema_model(ema_batch_input_freq_shift)
-                strong_pred_freq_shift_ema, weak_pred_freq_shift_ema = ema_predictor(encoded_x_freq_shift_ema)
-                strong_pred_freq_shift_ema = strong_pred_freq_shift_ema.detach()
-                weak_pred_freq_shift_ema = weak_pred_freq_shift_ema.detach()
-        
     
 
-        if ISP:
-            # Prediction and target(strong) shift
-            for k in range(strong_pred.shape[0]):
-                pool_shift = int(shift_list[k]/pooling_time_ratio)
 
-
-                pred_shift = torch.roll(strong_pred[k], pool_shift, dims=0)
-                pred_shift = torch.unsqueeze(pred_shift, 0)
-                # target_shift = torch.roll(target[k], pool_shift, dims=0)
-                # target_shift = torch.unsqueeze(target_shift, 0)
-
-                syn_pred_shift = torch.roll(syn_strong_pred[k], pool_shift, dims=0)
-                syn_pred_shift = torch.unsqueeze(syn_pred_shift, 0)
-                syn_target_shift = torch.roll(syn_target[k], pool_shift, dims=0)
-                syn_target_shift = torch.unsqueeze(syn_target_shift, 0)
-
-                if k==0:
-
-                    strong_pred_shift = pred_shift
-                    # strong_target_shift = target_shift
-
-                    syn_strong_pred_shift = syn_pred_shift
-                    syn_strong_target_shift = syn_target_shift
-                else:
-
-                    strong_pred_shift = torch.cat((strong_pred_shift,pred_shift), 0)
-                    # strong_target_shift = torch.cat((strong_target_shift,target_shift), 0)
-
-                    syn_strong_pred_shift = torch.cat((syn_strong_pred_shift,syn_pred_shift), 0)
-                    syn_strong_target_shift = torch.cat((syn_strong_target_shift,syn_target_shift), 0)
-
-
-
-            strong_pred_shift = strong_pred_shift.detach() 
-            syn_strong_pred_shift = syn_strong_pred_shift.detach() 
-            # Shifted prediction
-
-            encoded_x_shift, _ = model(batch_input_shift)
-            strong_shift_pred, weak_shift_pred = predictor(encoded_x_shift)
-            
-            encoded_x_freq_shift, _ = model(batch_input_freq_shift)
-            strong_freq_shift_pred, weak_freq_shift_pred = predictor(encoded_x_freq_shift)
-
-
-            syn_encoded_x_shift, _ = model(syn_batch_input_shift)
-            syn_strong_shift_pred, syn_weak_shift_pred = predictor(syn_encoded_x_shift)
-            
-            syn_encoded_x_freq_shift, _ = model(syn_batch_input_freq_shift)
-            syn_strong_freq_shift_pred, syn_weak_freq_shift_pred = predictor(syn_encoded_x_freq_shift)
 
             
         loss = None
@@ -450,134 +364,29 @@ def train_mt(train_unlabeled_loader, train_weak_loader, syn_loader, model, optim
         # FOR WEAK LABEL
         # ======================================================================================================
         syn_target_weak = syn_target.max(-2)[0]  # Take the max in the time axis
-        weak_class_loss = 0.3 * class_criterion(syn_weak_pred, syn_target_weak)
         weak_index = target_weak.shape[0] // 2
-        if ema_model is not None:
-            # weak_class_loss += class_criterion(weak_pred, target_weak)
-            weak_class_loss += 0.7 * class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
-        else:
-            weak_class_loss += 0.7 * class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
-        if ISP:
-            # SCT
-            # weak_freq_shift_class_loss = class_criterion(weak_freq_shift_pred[:weak_index], target_weak[:weak_index]) + class_criterion(weak_shift_pred[:weak_index], target_weak[:weak_index])
-            weak_freq_shift_class_loss = class_criterion(syn_weak_freq_shift_pred, syn_target_weak) + class_criterion(weak_freq_shift_pred[:weak_index], target_weak[:weak_index])
-        else:
-            # weak_class_loss = class_criterion(torch.cat((weak_pred[mask_weak], weak_pred[mask_strong]), 0), torch.cat((target_weak[mask_weak], target_weak[mask_strong]), 0))
-            pass
+        weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak) + class_criterion(weak_pred[:weak_index], target_weak[:weak_index])
+        
 
         # PSEUDO LABELING
         # if ema_model is not None:
         #     weak_class_loss = weak_class_loss + class_criterion(weak_pred, target_pl)
 
         if i == 0:
-            log.debug(f"target: {syn_target.mean(-2)} \n Target_weak: {target_weak} \n "
-                        f"Target weak mask: {target_weak} \n "
-                        f"Target strong mask: {syn_target.sum(-2)}\n"
-                        f"weak loss: {weak_class_loss} \t rampup_value: {rampup_value}"
-                        f"tensor mean: {batch_input.mean()}")
+            log.debug(f"target: {target.mean(-2)} \n"
+                f"weak loss: {weak_class_loss} \t rampup_value: {rampup_value}"
+                f"tensor mean: {batch_input.mean()}")
         meters.update('weak_class_loss', weak_class_loss.item())
-        # else:
-        #     weak_class_loss = class_criterion(syn_weak_pred, syn_target_weak)
-        #     if i == 0:
-        #         log.debug(f"target: {target.mean(-2)} \n Target_weak: {syn_target_weak} \n "
-        #                   f"Target weak mask: {syn_target_weak} \n "
-        #                   f"Target strong mask: {target.sum(-2)}\n"
-        #                   f"weak loss: {weak_class_loss} \t rampup_value: {rampup_value}"
-        #                   f"tensor mean: {batch_input.mean()}")
-        #     meters.update('weak_class_loss', weak_class_loss.item())
-
-
-        # Strong BCE loss
-        # strong_class_loss = class_criterion(strong_pred[mask_strong], target[mask_strong])
-        strong_class_loss = class_criterion(syn_strong_pred, syn_target)
-        meters.update('Strong loss', strong_class_loss.item())
-
-        if ISP:
-            # SCT
-            strong_shift_class_loss = class_criterion(syn_strong_shift_pred, syn_strong_target_shift)
-            strong_freq_shift_class_loss = class_criterion(syn_strong_freq_shift_pred, syn_target)
-
-        # Teacher-student consistency cost
-        if ema_model is not None:
-            consistency_cost = cfg.max_consistency_cost * rampup_value
-            meters.update('Consistency weight', consistency_cost)
-            # Take consistency about strong predictions (all data)
-            consistency_loss_strong = consistency_cost * consistency_criterion(strong_pred, strong_pred_ema)
-            # consistency_loss_strong += consistency_cost * consistency_criterion(syn_strong_pred, syn_strong_pred_ema)
-            meters.update('Consistency strong', consistency_loss_strong.item())
-            # meters.update('Consistency weight', consistency_cost)
-            # Take consistency about weak predictions (all data)
-            consistency_loss_weak = consistency_cost * consistency_criterion(weak_pred, weak_pred_ema)
-            # consistency_loss_weak += consistency_cost * consistency_criterion(syn_weak_pred, syn_weak_pred_ema)
-            meters.update('Consistency weak', consistency_loss_weak.item())
-
-            if ISP:
-                # Take consistency about shift strong predictions (all data)
-                consistency_loss_strong_shift = consistency_cost * consistency_criterion(strong_shift_pred, strong_pred_shift_ema)
-                meters.update('Consistency strong shift', consistency_loss_strong_shift.item())
-
-                # Take consistency about shift weak predictions (all data)
-                consistency_loss_weak_shift = consistency_cost * consistency_criterion(weak_shift_pred[weak_index:], weak_pred_shift_ema[weak_index:])
-                meters.update('Consistency weak shift', consistency_loss_weak_shift.item())
-
-                # Take consistency about shift strong predictions (all data)
-                consistency_loss_strong_freq_shift = consistency_cost * consistency_criterion(strong_freq_shift_pred, strong_pred_freq_shift_ema)
-                    
-                meters.update('Consistency strong freq shift', consistency_loss_strong_freq_shift.item())
-
-                # Take consistency about shift weak predictions (all data)
-                consistency_loss_weak_freq_shift = consistency_cost * consistency_criterion(weak_freq_shift_pred[weak_index:], weak_pred_freq_shift_ema[weak_index:])
-                meters.update('Consistency weak freq shift', consistency_loss_weak_freq_shift.item())       
- 
- 
-        # Calculate loss for labeled data
         
         loss = weak_class_loss
-        
-        if ema_model is not None:
-            loss = loss + (consistency_loss_weak + consistency_loss_strong)
-        
-        if ISP:
-            # Add shift consistency loss
-            consistency_loss_shift = consistency_cost/2 * (consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift) + consistency_criterion(strong_shift_pred, strong_pred_shift))
-            loss = loss + (weak_freq_shift_class_loss + strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
-            # consistency_loss_shift = consistency_cost/2 * consistency_criterion(syn_strong_shift_pred, syn_strong_pred_shift)
-            # loss = loss + (strong_shift_class_loss + strong_freq_shift_class_loss + consistency_loss_shift)
-            # loss = loss + 1/2 * (consistency_loss_strong_shift + consistency_loss_weak_shift + consistency_loss_strong_freq_shift + consistency_loss_weak_freq_shift)
-            loss = loss + 1/2 * (consistency_loss_strong_shift + consistency_loss_strong_freq_shift)
+    
         
         # if discriminator is not None:
         #     loss += domain_loss
         
         writer.add_scalar('Loss', loss.item(), niter)
         writer.add_scalar('Weak class loss', weak_class_loss.item(), niter)
-        writer.add_scalar('Strong class loss', strong_class_loss.item(), niter)
-
-        if discriminator is not None:
-            if global_step % update_step == 0:
-                # writer.add_scalar('Decoder domain loss', domain_loss_d.item(), niter)   
-                writer.add_scalar('Feature extractor domain loss', domain_loss.item(), niter)
-            
-        
-
-        if ema_model is not None:
-            writer.add_scalar('Consistency strong', consistency_loss_strong.item(), niter)
-            writer.add_scalar('Consistency weak', consistency_loss_weak.item(), niter)
-
-        if ISP:
-            # writer.add_scalar('Mixup weak class loss', mixup_weak_class_loss.item(), niter)
-            # writer.add_scalar('Mixup strong class loss', mixup_strong_class_loss.item(), niter)
-            # writer.add_scalar('Mixup consistency weak loss', mixup_consistency_weak_loss.item(), niter)
-            # writer.add_scalar('Mixup consistency strong loss', mixup_consistency_strong_loss.item(), niter)    
-            writer.add_scalar('Consistency shift', consistency_loss_shift.item(), niter)
-            writer.add_scalar('Strong shift class loss', strong_shift_class_loss.item(), niter)
-            writer.add_scalar('Weak freq shift class loss', weak_freq_shift_class_loss.item(), niter)
-            writer.add_scalar('Strong freq shift class loss', strong_freq_shift_class_loss.item(), niter)
-
-            writer.add_scalar('Consistency strong shift', consistency_loss_strong_shift.item(), niter)
-            writer.add_scalar('Consistency weak shift', consistency_loss_weak_shift.item(), niter)
-            writer.add_scalar('Consistency strong freq shift', consistency_loss_strong_freq_shift.item(), niter)
-            writer.add_scalar('Consistency weak freq shift', consistency_loss_weak_freq_shift.item(), niter)
+        # writer.add_scalar('Strong class loss', strong_class_loss.item(), niter)
 
         assert not (np.isnan(loss.item()) or loss.item() > 1e5), 'Loss explosion: {}'.format(loss.item())
         assert not loss.item() < 0, 'Loss problem, cannot be negative'
@@ -655,7 +464,7 @@ if __name__ == '__main__':
     store_dir = os.path.join("stored_data", model_name)
     saved_model_dir = os.path.join(store_dir, "model")
     saved_pred_dir = os.path.join(store_dir, "predictions")
-    start_epoch = 0
+    start_epoch = 8
     if start_epoch == 0:
         writer = SummaryWriter(os.path.join(store_dir, "log"))
         os.makedirs(store_dir, exist_ok=True)
@@ -747,122 +556,7 @@ if __name__ == '__main__':
     real_weak_dataloader = DataLoader(real_weak_dataset, batch_size=cfg.batch_size//2, shuffle=True)
     syn_dataloader = DataLoader(syn_dataset, batch_size=cfg.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
-    # syn_dataloader = real_dataloader
-    # weak_data = DataLoadDf(dfs["weak"], encod_func, transforms, in_memory=cfg.in_memory)
-    # unlabel_data = DataLoadDf(dfs["unlabel"], encod_func, transforms, in_memory=cfg.in_memory_unlab)
-    # train_synth_data = DataLoadDf(dfs["train_synthetic"], encod_func, transforms, in_memory=cfg.in_memory)
-    # valid_synth_data = DataLoadDf(dfs["valid_synthetic"], encod_func, transforms_valid,
-    #                               return_indexes=True, in_memory=cfg.in_memory)
-
-    # real validation data
-    # validation_data = DataLoadDf(dfs["validation"], encod_func, transform=transforms_valid, return_indexes=True, in_memory=cfg.in_memory)
-    # weak_dataload = DataLoadDf(dfs["validation"], many_hot_encoder.encode_weak, transforms_valid, return_indexes=True, in_memory=cfg.in_memory)
-    # logger.debug(f"len synth: {len(train_synth_data)}, len_unlab: {len(unlabel_data)}, len weak: {len(weak_data)}")
-
-    # if stage == 'adaptation' or (stage=='pretrain' and meanteacher):
-    #     if not no_synthetic:
-    #         list_dataset = [weak_data, unlabel_data, train_synth_data]
-    #         batch_sizes = [cfg.batch_size//4, cfg.batch_size//2, cfg.batch_size//4]
-    #         strong_mask = slice((3*cfg.batch_size)//4, cfg.batch_size)
-    #     else:
-    #         list_dataset = [weak_data, unlabel_data]
-    #         batch_sizes = [cfg.batch_size // 4, 3 * cfg.batch_size // 4]
-    #         strong_mask = None
-    #     weak_mask = slice(batch_sizes[0])  # Assume weak data is always the first one
-    # else:
-    #     list_dataset = [weak_data, train_synth_data]
-    #     batch_sizes = [cfg.batch_size//2, cfg.batch_size//2]
-    #     strong_mask = slice((cfg.batch_size)//2, cfg.batch_size)
-    #     weak_mask = slice(batch_sizes[0])
-
-    # concat_dataset = ConcatDataset(list_dataset)
-    # sampler = MultiStreamBatchSampler(concat_dataset, batch_sizes=batch_sizes)
-    # training_loader = DataLoader(concat_dataset, batch_sampler=sampler)
-    # valid_synth_loader = DataLoader(valid_synth_data, batch_size=cfg.batch_size)
-    # # real validation data
-    # validation_dataloader = DataLoader(validation_data, batch_size=cfg.batch_size, shuffle=False, drop_last=False)
-    # validation_dataloader_weak = DataLoader(weak_dataload, batch_size=cfg.batch_size, shuffle=False, drop_last=False)
-
-    # ##############
-    # Model
-    # ##############
-    # if f_args.use_fpn:
-    #     crnn = CRNN_fpn(**crnn_kwargs)
-    # else:
-    #     crnn = CRNN(**crnn_kwargs)
-    # pytorch_total_params = sum(p.numel() for p in crnn.parameters() if p.requires_grad)
-    # logger.info(crnn)
-    # logger.info("number of parameters in the model: {}".format(pytorch_total_params))
     
-
-    # if stage == 'adaptation':
-    #     if f_args.level == 'frame':
-    #         discriminator = Frame_Discriminator(**discriminator_kwargs)
-    #     elif f_args.level == 'clip':
-    #         discriminator = Clip_Discriminator(**discriminator_kwargs)
-    #     domain_adv  = ConditionalDomainAdversarialLoss(discriminator, entropy_conditioning=False,
-    #     num_classes=20, features_dim=256*313, randomized=True,
-    #     randomized_dim=8192)
-    # else:
-    #     discriminator = None
-    #     domain_adv = None
-
-    # predictor = Predictor(**predictor_kwargs)
-    
-    # if meanteacher:
-    #     if f_args.use_fpn:
-    #         crnn_ema = CRNN_fpn(**crnn_kwargs)
-    #     else:
-    #         crnn_ema = CRNN(**crnn_kwargs) 
-    #     predictor_ema = Predictor(**predictor_kwargs)
-
-    # if start_epoch == 0:
-    #     crnn.apply(weights_init)
-    #     if stage == 'adaptation':
-    #         discriminator.apply(weights_init)
-    #     predictor.apply(weights_init)
-
-    #     if meanteacher:
-    #         crnn_ema.apply(weights_init)
-    #         predictor_ema.apply(weights_init)
-    # # resume training
-    # else:        
-    #     model_path = os.path.join(saved_model_dir, 'baseline_epoch_{}'.format(start_epoch-1))
-    #     expe_state = torch.load(model_path)
-        
-    #     # if not f_args.use_fpn:
-    #     #     for key in list(expe_state["model"]["state_dict"].keys()): # match keys
-    #     #         if 'cnn.' in key:
-    #     #             expe_state["model"]["state_dict"][key.replace('cnn.', 'cnn.cnn.')] = expe_state["model"]["state_dict"][key]
-    #     #             del expe_state["model"]["state_dict"][key]
-    #     if not f_args.use_fpn:        
-    #         for key in list(expe_state["model"]["state_dict"].keys()):
-    #             if 'cnn.' in key:
-    #                 expe_state["model"]["state_dict"][key.replace('cnn.', 'cnn.cnn.')] = expe_state["model"]["state_dict"][key]
-    #                 del expe_state["model"]["state_dict"][key]
-    #     crnn.load_state_dict(expe_state["model"]["state_dict"])
-        
-    #     if stage == 'adaptation':
-    #         if start_epoch == 1 or start_epoch == 51:
-    #             discriminator.apply(weights_init) # for adversarial training
-    #         else:
-    #             discriminator.load_state_dict(expe_state["model_d"]["state_dict"])
-    #     predictor.load_state_dict(expe_state["model_p"]["state_dict"])
-        
-    #     if meanteacher:
-    #         if not f_args.use_fpn:
-    #             for key in list(expe_state["model_ema"]["state_dict"].keys()): # match keys of teacher model
-    #                 if 'cnn.' in key:
-    #                     expe_state["model_ema"]["state_dict"][key.replace('cnn.', 'cnn.cnn.')] = expe_state["model_ema"]["state_dict"][key]
-    #                     del expe_state["model_ema"]["state_dict"][key]
-    #         crnn_ema.load_state_dict(expe_state["model_ema"]["state_dict"])
-    #         predictor_ema.load_state_dict(expe_state["model_p_ema"]["state_dict"])
-            
-    # if meanteacher:
-    #     for param in crnn_ema.parameters():
-    #         param.detach_()
-    #     for param in predictor_ema.parameters():
-    #         param.detach_()
     model = Net_resnet(pretrained=True)
 
     # else:
@@ -883,131 +577,10 @@ if __name__ == '__main__':
                       'args': '',
                       "kwargs": optim_kwargs,
                       'state_dict': optim.state_dict()},
-        "scaler": {
-            "type": type(scaler).__name__,
-            "args": scaler_args,
-            "state_dict": scaler.state_dict()},
         "many_hot_encoder": many_hot_encoder.state_dict()
     }
 
     save_best_cb = SaveBest("sup")
-
-    # # optim_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    # optim_d_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    # optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "momentum": 0.9, "weight_decay":1e-4, "nesterov": True}
-    # optim_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
-    # # optim_d_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
-    # # optim_crnn_kwargs = {"lr": cfg.default_learning_rate, "betas": (0.9, 0.999)}
-
-    # optim = torch.optim.Adam(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters())), **optim_kwargs)
-    # # optim = torch.optim.SGD(filter(lambda p: p.requires_grad, list(crnn.parameters())+list(predictor.parameters()) + list(discriminator.parameters())), **optim_kwargs)
-    # optim_crnn = torch.optim.SGD(filter(lambda p: p.requires_grad, crnn.parameters()), **optim_crnn_kwargs)
-    # if stage == 'adaptation':
-    #     optim_d = torch.optim.SGD(filter(lambda p: p.requires_grad, discriminator.parameters()), **optim_d_kwargs)
-        
-    #     if start_epoch > 1 and start_epoch != 51:
-    #         optim.load_state_dict(expe_state['optimizer']['state_dict'])
-    #         optim_d.load_state_dict(expe_state['optimizer_d']['state_dict'])
-    #         optim_crnn.load_state_dict(expe_state['optimizer_crnn']['state_dict'])
-    #         # deal with "RuntimeError: expected device cpu but got device cuda:0"
-    #         for state in optim.state.values():
-    #             for k, v in state.items():
-    #                 if torch.is_tensor(v):
-    #                     state[k] = v.cuda()
-    #         for state in optim_d.state.values():
-    #             for k, v in state.items():
-    #                 if torch.is_tensor(v):
-    #                     state[k] = v.cuda()
-    #         for state in optim_crnn.state.values():
-    #             for k, v in state.items():
-    #                 if torch.is_tensor(v):
-    #                     state[k] = v.cuda()
-
-    # else:
-    #     optim_d = None
-
-
-    # if stage == 'pretrain':
-    #     state = {
-    #         'model': {"name": crnn.__class__.__name__,
-    #                 'args': '',
-    #                 "kwargs": crnn_kwargs,
-    #                 'state_dict': crnn.state_dict()},
-    #         'model_p': {"name": predictor.__class__.__name__,
-    #                     'args': '',
-    #                     "kwargs": predictor_kwargs,
-    #                     'state_dict': predictor.state_dict()},
-    #         'optimizer': {"name": optim.__class__.__name__,
-    #                     'args': '',
-    #                     "kwargs": optim_kwargs,
-    #                     'state_dict': optim.state_dict()},
-    #         'optimizer_crnn': {"name": optim_crnn.__class__.__name__,
-    #                 'args': '',
-    #                 "kwargs": optim_kwargs,
-    #                 'state_dict': optim_crnn.state_dict()},
-    #         "pooling_time_ratio": pooling_time_ratio,
-    #         # "scaler": {
-    #         #     "type": type(scaler).__name__,
-    #         #     "args": scaler_args,
-    #         #     "state_dict": scaler.state_dict()},
-    #         "many_hot_encoder": many_hot_encoder.state_dict(),
-    #         "median_window": median_window,
-    #         # "desed": dataset.state_dict()
-    #     }
-    # else:
-    #     state = {
-    #         'model': {"name": crnn.__class__.__name__,
-    #                 'args': '',
-    #                 "kwargs": crnn_kwargs,
-    #                 'state_dict': crnn.state_dict()},
-    #         'model_d': {"name": discriminator.__class__.__name__,
-    #                     'args': '',
-    #                     "kwargs": discriminator_kwargs,
-    #                     'state_dict': discriminator.state_dict()},
-    #         'model_p': {"name": predictor.__class__.__name__,
-    #                     'args': '',
-    #                     "kwargs": predictor_kwargs,
-    #                     'state_dict': predictor.state_dict()},
-    #         'optimizer': {"name": optim.__class__.__name__,
-    #                     'args': '',
-    #                     "kwargs": optim_kwargs,
-    #                     'state_dict': optim.state_dict()},
-    #         'optimizer_d': {"name": optim_d.__class__.__name__,
-    #                 'args': '',
-    #                 "kwargs": optim_kwargs,
-    #                 'state_dict': optim_d.state_dict()},
-    #         'optimizer_crnn': {"name": optim_crnn.__class__.__name__,
-    #                 'args': '',
-    #                 "kwargs": optim_kwargs,
-    #                 'state_dict': optim_crnn.state_dict()},
-    #         "pooling_time_ratio": pooling_time_ratio,
-    #         # "scaler": {
-    #         #     "type": type(scaler).__name__,
-    #         #     "args": scaler_args,
-    #         #     "state_dict": scaler.state_dict()},
-    #         # "scaler": {
-    #         #     "type": type(scaler).__name__,
-    #         #     "args": scaler_args,
-    #         #     "state_dict": scaler.state_dict()},
-                    
-    #         "many_hot_encoder": many_hot_encoder.state_dict(),
-    #         "median_window": median_window,
-    #         # "desed": dataset.state_dict()
-    #     }
-
-    # if meanteacher:
-    #     state["model_ema"] = {"name": crnn_ema.__class__.__name__,
-    #                       'args': '',
-    #                       "kwargs": crnn_kwargs,
-    #                       'state_dict': crnn_ema.state_dict()}
-    #     state["model_p_ema"] = {"name": predictor_ema.__class__.__name__,
-    #                     'args': '',
-    #                     "kwargs": predictor_kwargs,
-    #                     'state_dict': predictor_ema.state_dict()}
-
-    # save_best_cb = SaveBest("sup")
-    # if cfg.early_stopping is not None:
-    #     early_stopping_call = EarlyStopping(patience=cfg.early_stopping, val_comp="sup", init_patience=cfg.es_init_wait)
 
     # ##############
     # Train
@@ -1015,77 +588,72 @@ if __name__ == '__main__':
     current_loss_min = np.inf
     results = pd.DataFrame(columns=["loss", "valid_synth_f1", "weak_metric", "global_valid"])
     for epoch in range(start_epoch, cfg.n_epoch):
-        crnn.train()
-        if stage == 'adaptation':
-            discriminator.train()
-        predictor.train()
-        # crnn, crnn_ema, predictor = to_cuda_if_available(crnn, crnn_ema, predictor)
-        if stage == 'adaptation':
-            # crnn, discriminator, predictor = to_cuda_if_available(crnn, discriminator, predictor)
-            crnn, discriminator, domain_adv, predictor = to_cuda_if_available(crnn, discriminator, domain_adv, predictor)
+        # crnn.train()
+        # if stage == 'adaptation':
+        #     discriminator.train()
+        # predictor.train()
+        # # crnn, crnn_ema, predictor = to_cuda_if_available(crnn, crnn_ema, predictor)
+        # if stage == 'adaptation':
+        #     # crnn, discriminator, predictor = to_cuda_if_available(crnn, discriminator, predictor)
+        #     crnn, discriminator, domain_adv, predictor = to_cuda_if_available(crnn, discriminator, domain_adv, predictor)
             
-        else:
-            crnn, predictor = to_cuda_if_available(crnn, predictor)
+        # else:
+        #     crnn, predictor = to_cuda_if_available(crnn, predictor)
+        model.train()
+        model = to_cuda_if_available(model)
         
-        if meanteacher:
-            crnn_ema.train()
-            predictor_ema.train()
-            crnn_ema, predictor_ema = to_cuda_if_available(crnn_ema, predictor_ema)
+        # if meanteacher:
+        #     crnn_ema.train()
+        #     predictor_ema.train()
+        #     crnn_ema, predictor_ema = to_cuda_if_available(crnn_ema, predictor_ema)
 
-            # loss_value = train(training_loader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
-            #                 mask_weak=weak_mask, mask_strong=strong_mask, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)            
-            loss_value = train_mt(real_unlabeled_dataloader, real_weak_dataloader, syn_dataloader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
-                            mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=domain_adv, optimizer_d=None, optimizer_crnn=None, ISP=ISP)
-        else:
+        #     # loss_value = train(training_loader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
+        #     #                 mask_weak=weak_mask, mask_strong=strong_mask, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)            
+        #     loss_value = train_mt(real_unlabeled_dataloader, real_weak_dataloader, syn_dataloader, crnn, optim, epoch, ema_model=crnn_ema, ema_predictor=predictor_ema,
+        #                     mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=domain_adv, optimizer_d=None, optimizer_crnn=None, ISP=ISP)
+        # else:
             #     loss_value = train(real_dataloader, crnn, optim, epoch,
             #                     mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=discriminator, optimizer_d=optim_d, optimizer_crnn=optim_crnn, ISP=ISP)
-            loss_value = train_mt(real_unlabeled_dataloader, real_weak_dataloader, syn_dataloader, crnn, optim, epoch, ema_model=None, ema_predictor=None,
-                                mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=predictor, discriminator=domain_adv, optimizer_d=None, optimizer_crnn=None, ISP=ISP)
+        loss_value = train_mt(real_unlabeled_dataloader, real_weak_dataloader, syn_dataloader, model, optim, epoch, ema_model=None, ema_predictor=None,
+                            mask_weak=None, mask_strong=None, adjust_lr=cfg.adjust_lr, predictor=None, discriminator=None, optimizer_d=None, optimizer_crnn=None, ISP=ISP)
 
         # Validation
-        crnn.eval()
-        predictor.eval()
+        model.eval()
+        # predictor.eval()
         logger.info("\n ### Valid synthetic metric ### \n")
         saved_path_list = [os.path.join("./stored_data", model_name, "predictions", "result.csv")]
         # real_dataset = torch.utils.data.ConcatDataset([real_unlabeled_dataset, real_weak_dataset])
-        predictions, valid_synth, durations_synth = get_predictions(crnn, syn_dataloader, many_hot_encoder.decode_strong, pooling_time_ratio,
-                                      median_window=median_window, save_predictions=saved_path_list, predictor=predictor)
+        # predictions, valid_synth, durations_synth = get_predictions(crnn, syn_dataloader, many_hot_encoder.decode_strong, pooling_time_ratio,median_window=median_window, save_predictions=saved_path_list, predictor=predictor)
         # Validation with synthetic data (dropping feature_filename for psds)
         # valid_synth = dfs["valid_synthetic"].drop("feature_filename", axis=1)
-        ct_matrix, valid_synth_f1, psds_m_f1 = compute_metrics(predictions, valid_synth, durations_synth)
-        writer.add_scalar('Strong F1-score', valid_synth_f1, epoch)
+        # ct_matrix, valid_synth_f1, psds_m_f1 = compute_metrics(predictions, valid_synth, durations_synth)
+        # writer.add_scalar('Strong F1-score', valid_synth_f1, epoch)
         # Real validation data
         # validation_labels_df = dfs["validation"].drop("feature_filename", axis=1)
         # durations_validation = get_durations_df(cfg.validation, cfg.audio_validation_dir)
-        logger.info("\n ### Real validation metric ### \n")
-        if f_args.use_fpn:     
-            valid_predictions, validation_labels_df, durations_validation = get_predictions(crnn, val_dataloader, many_hot_encoder.decode_strong,
-                                            pooling_time_ratio, median_window=median_window, predictor=predictor, fpn=True)
-        else:
-            valid_predictions, validation_labels_df, durations_validation = get_predictions(crnn, val_dataloader, many_hot_encoder.decode_strong,
-                                            pooling_time_ratio, median_window=median_window, predictor=predictor)
-        ct_matrix, valid_real_f1, psds_real_f1 = compute_metrics(valid_predictions, validation_labels_df, durations_validation)
-        writer.add_scalar('Real Validation F1-score', valid_real_f1, epoch)
+        # logger.info("\n ### Real validation metric ### \n")
+        # if f_args.use_fpn:     
+        #     valid_predictions, validation_labels_df, durations_validation = get_predictions(crnn, val_dataloader, many_hot_encoder.decode_strong,
+        #                                     pooling_time_ratio, median_window=median_window, predictor=predictor, fpn=True)
+        # else:
+        #     valid_predictions, validation_labels_df, durations_validation = get_predictions(crnn, val_dataloader, many_hot_encoder.decode_strong,
+        #                                     pooling_time_ratio, median_window=median_window, predictor=predictor)
+        # ct_matrix, valid_real_f1, psds_real_f1 = compute_metrics(valid_predictions, validation_labels_df, durations_validation)
+        # writer.add_scalar('Real Validation F1-score', valid_real_f1, epoch)
         print("cross-trigger confusion matrix")
         # print_ct_matrix(ct_matrix)
         # Evaluate weak
         # weak_metric = get_f_measure_by_class(crnn, len(cfg.classes), validation_dataloader_weak, predictor=predictor)
-        # writer.add_scalar("Weak F1-score macro averaged", np.mean(weak_metric), epoch)  
+        weak_metric_valid = get_f_measure_by_class(model, len(cfg.bird_list), val_dataloader, trained=True)
+        writer.add_scalar("Weak F1-score macro averaged", np.mean(weak_metric_valid), epoch)  
 
         # Update state
-        state['model']['state_dict'] = crnn.state_dict()
-        state['model_p']['state_dict'] = predictor.state_dict()
+        state['model']['state_dict'] = model.state_dict()
         state['optimizer']['state_dict'] = optim.state_dict()
-        state['optimizer_crnn']['state_dict'] = optim_crnn.state_dict()
         state['epoch'] = epoch
-        # state['valid_metric'] = valid_synth_f1
-        # state['valid_f1_psds'] = psds_m_f1
-        if stage == 'adaptation':
-            state['model_d']['state_dict'] = discriminator.state_dict()
-            state['optimizer_d']['state_dict'] = optim_d.state_dict()
-        if meanteacher:
-            state['model_ema']['state_dict'] = crnn_ema.state_dict()
-            state['model_p_ema']['state_dict'] = predictor_ema.state_dict()
+        state['weak_metric'] = np.mean(weak_metric_valid)
+        print('weak: ' + str(np.mean(weak_metric_valid)))
+
 
         # Callbacks
         if cfg.checkpoint_epochs is not None and (epoch + 1) % cfg.checkpoint_epochs == 0:
@@ -1110,25 +678,25 @@ if __name__ == '__main__':
             torch.save(state, model_fname)
             current_loss_min = loss_value.item()
 
-        results.loc[epoch, "global_valid"] = valid_real_f1
+        # results.loc[epoch, "global_valid"] = valid_real_f1
         results.loc[epoch, "loss"] = loss_value.item()
-        results.loc[epoch, "valid_synth_f1"] = valid_real_f1
+        # results.loc[epoch, "valid_synth_f1"] = valid_real_f1
 
-        if cfg.early_stopping:
-            if early_stopping_call.apply(valid_real_f1):
-                logger.warn("EARLY STOPPING")
-                break
+        # if cfg.early_stopping:
+        #     if early_stopping_call.apply(valid_real_f1):
+        #         logger.warn("EARLY STOPPING")
+        #         break
 
 
     if cfg.save_best:
         model_fname = os.path.join(saved_model_dir, "baseline_best")
         state = torch.load(model_fname)
-        crnn = _load_crnn(state)
+        model = _load_crnn(state)
         logger.info(f"testing model: {model_fname}, epoch: {state['epoch']}")
     else:
         logger.info("testing model of last epoch: {}".format(cfg.n_epoch))
-    results_df = pd.DataFrame(results).to_csv(os.path.join(saved_pred_dir, "results.tsv"),
-                                              sep="\t", index=False, float_format="%.4f")
+    # results_df = pd.DataFrame(results).to_csv(os.path.join(saved_pred_dir, "results.tsv"),
+    #                                           sep="\t", index=False, float_format="%.4f")
     # ##############
     # Validation
     # ##############

@@ -92,7 +92,7 @@ class ENA_Dataset_unlabeled(Dataset):
         self.transform = transform
         self.encod_func = encod_func
         
-        self.annotation_dir = "/home/fumchin/data/bsed_20/src/unlabel_in_domain_pseudo_weak.tsv"
+        self.annotation_dir = "/home/fumchin/data/bsed_20/src/unlabel_in_domain_pseudo_weak_resNet.tsv"
         self.feature_dir = os.path.join(self.preprocess_dir, "wav")
         self.feature_file_list = glob(os.path.join(self.feature_dir, "*.npy"))
         self.labels = cfg.bird_list
